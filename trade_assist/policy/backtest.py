@@ -71,6 +71,24 @@ def _apply_liquidity_caps(
     return capped, touched
 
 
+def _enforce_min_trade_shares(
+    trade_shares: pd.Series,
+    min_trade_shares: float,
+    exempt_tickers: set[str] | None = None,
+) -> pd.Series:
+    threshold = max(float(min_trade_shares), ZERO)
+    if threshold <= ZERO:
+        return trade_shares
+
+    filtered = trade_shares.copy()
+    for ticker in filtered.index:
+        if exempt_tickers and ticker in exempt_tickers:
+            continue
+        if abs(float(filtered.loc[ticker])) < threshold:
+            filtered.loc[ticker] = ZERO
+    return filtered
+
+
 def run_policy(
     ohlcv_map: dict[str, pd.DataFrame],
     index_close: pd.Series | pd.DataFrame,
@@ -242,6 +260,11 @@ def run_policy(
         target_shares.loc[~tradeable_mask] = holdings.loc[~tradeable_mask]
 
         trade_shares = target_shares - holdings
+        trade_shares = _enforce_min_trade_shares(
+            trade_shares=trade_shares,
+            min_trade_shares=cfg.min_trade_shares,
+            exempt_tickers=set(forced_exit_reasons.keys()),
+        )
         adv = next_adv_dollars.loc[day].reindex(tickers).fillna(ZERO)
 
         trade_shares, liquidity_touched = _apply_liquidity_caps(
@@ -250,6 +273,11 @@ def run_policy(
             adv_dollars=adv,
             min_adv_dollars=cfg.liquidity.min_adv_dollars,
             max_trade_adv_fraction=cfg.liquidity.max_trade_adv_fraction,
+        )
+        trade_shares = _enforce_min_trade_shares(
+            trade_shares=trade_shares,
+            min_trade_shares=cfg.min_trade_shares,
+            exempt_tickers=set(forced_exit_reasons.keys()),
         )
         target_shares = holdings + trade_shares
 
@@ -283,6 +311,11 @@ def run_policy(
         if buy_scale < ONE:
             buy_mask = trade_shares > ZERO
             trade_shares.loc[buy_mask] = trade_shares.loc[buy_mask] * buy_scale
+            trade_shares = _enforce_min_trade_shares(
+                trade_shares=trade_shares,
+                min_trade_shares=cfg.min_trade_shares,
+                exempt_tickers=set(forced_exit_reasons.keys()),
+            )
             target_shares = holdings + trade_shares
             trade_notional = (trade_shares * fill_px_all).fillna(ZERO)
 

@@ -88,3 +88,30 @@ def test_backtest_trailing_stop_forces_exit_even_without_rebalance(ohlcv_factory
     assert not exits.empty
     assert set(exits["event"]) == {EVENT_RISK_EXIT}
     assert float(out.final_holdings["AAA"]) == 0.0
+
+
+def test_backtest_min_trade_shares_blocks_dust_rebalances(ohlcv_factory):
+    df = ohlcv_factory(periods=340, start_price=100.0, step=0.25, volume=2_000_000.0)
+    initial_cash = 500.0
+    policy = PolicyConfig.from_dict(
+        {
+            "rebalance_freq": "B",
+            "min_hold_days": 0,
+            "min_trade_shares": 10.0,
+            "gross_cap_risk_on": 1.0,
+            "gross_cap_risk_off": 1.0,
+            "liquidity": {"min_adv_dollars": 0.0, "max_trade_adv_fraction": 1.0},
+            "risk_exit": {"stop_loss_pct": 0.0, "trailing_stop_pct": 0.0, "cooldown_days": 0},
+        }
+    )
+
+    out = run_policy(
+        ohlcv_map={"AAA": df},
+        index_close=df[COL_CLOSE],
+        config=policy,
+        initial_cash=initial_cash,
+    )
+
+    assert int(out.rebalance_log["trade_count"].sum()) == 0
+    assert float(out.final_holdings["AAA"]) == 0.0
+    assert float(out.final_cash) == initial_cash

@@ -108,6 +108,7 @@
         "gross_cap_risk_off": {"type": "number"},
         "max_weight": {"type": "number"},
         "min_hold_days": {"type": "integer", "minimum": 0},
+        "min_trade_shares": {"type": "number", "minimum": 0},
         "risk_off_target_vol_multiplier": {"type": "number"},
         "covariance_lookback": {"type": "integer", "minimum": 1},
         "liquidity": {

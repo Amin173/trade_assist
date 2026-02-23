@@ -13,6 +13,7 @@ def test_validate_backtest_config_rejects_missing_required_sections():
 def test_validate_policy_accepts_known_keys():
     payload = {
         "rebalance_freq": "W-FRI",
+        "min_trade_shares": 1.0,
         "liquidity": {"min_adv_dollars": 0, "max_trade_adv_fraction": 0.1},
         "risk_exit": {"stop_loss_pct": 0.1, "trailing_stop_pct": 0.2, "cooldown_days": 5},
         "regime": {"use_breadth": True, "breadth_min_frac": 0.6, "min_confirmations": 4},

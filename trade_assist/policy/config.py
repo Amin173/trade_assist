@@ -12,6 +12,7 @@ from .constants import (
     DEFAULT_MAX_WEIGHT,
     DEFAULT_MIN_ADV_DOLLARS,
     DEFAULT_MIN_HOLD_DAYS,
+    DEFAULT_MIN_TRADE_SHARES,
     DEFAULT_REBALANCE_FREQ,
     DEFAULT_RISK_OFF_TARGET_VOL_MULTIPLIER,
     DEFAULT_REGIME_BREADTH_MIN_FRAC,
@@ -71,6 +72,7 @@ class PolicyConfig:
     gross_cap_risk_off: float = DEFAULT_GROSS_CAP_RISK_OFF
     max_weight: float = DEFAULT_MAX_WEIGHT
     min_hold_days: int = DEFAULT_MIN_HOLD_DAYS
+    min_trade_shares: float = DEFAULT_MIN_TRADE_SHARES
     risk_off_target_vol_multiplier: float = DEFAULT_RISK_OFF_TARGET_VOL_MULTIPLIER
     covariance_lookback: int = DEFAULT_COVARIANCE_LOOKBACK
     score_weights: ScoreWeights = field(default_factory=ScoreWeights)

@@ -409,12 +409,18 @@ def _handle_backtest_output(backtest, output_cfg: dict[str, Any], ohlcv_map: dic
             rebalance = backtest.rebalance_log.copy()
             rebalance["date"] = pd.to_datetime(rebalance["date"], errors="coerce")
             rebalance = rebalance.dropna(subset=["date"])
+            if "trade_count" in rebalance.columns:
+                rebalance = rebalance[rebalance["trade_count"] > 0]
             if not rebalance.empty:
                 equity_series = account["equity"]
                 y_span = float(equity_series.max() - equity_series.min())
                 y_offset = max(y_span * TRADE_MARKER_OFFSET_RATIO, ONE)
-                buy_days = pd.DatetimeIndex(rebalance.loc[rebalance["buy_notional"] > 0, "date"].unique())
-                sell_days = pd.DatetimeIndex(rebalance.loc[rebalance["sell_notional"] > 0, "date"].unique())
+                buy_days = pd.DatetimeIndex(
+                    rebalance.loc[rebalance["buy_notional"] > ZERO, "date"].unique()
+                )
+                sell_days = pd.DatetimeIndex(
+                    rebalance.loc[rebalance["sell_notional"] > ZERO, "date"].unique()
+                )
                 buy_points = equity_series.reindex(buy_days).dropna()
                 sell_points = equity_series.reindex(sell_days).dropna()
                 if not buy_points.empty:

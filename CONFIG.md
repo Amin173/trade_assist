@@ -107,6 +107,7 @@ Core controls:
 - `gross_cap_risk_off` (`number`, default `0.3`): maximum total invested exposure in defensive conditions. Lower values keep more capital in cash.
 - `max_weight` (`number`, default `0.45`): upper bound for a single symbol's portfolio weight. Lower values reduce single-name concentration.
 - `min_hold_days` (`integer`, default `10`): minimum number of days before the model can resize a position. Higher values reduce churn.
+- `min_trade_shares` (`number`, default `0`): minimum executed trade size in shares during backtest. Trades smaller than this threshold are skipped, which helps remove tiny dust rebalances.
 - `risk_off_target_vol_multiplier` (`number`, default `0.5`): scales risk target in defensive conditions. Example: `0.22 * 0.5 = 0.11`.
 - `covariance_lookback` (`integer`, default `252`): number of historical trading days used to estimate correlation/risk structure. Larger windows are steadier but slower to adapt.
 
