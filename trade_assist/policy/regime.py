@@ -13,7 +13,9 @@ from .constants import (
 )
 
 
-def _to_close_matrix(index_close: pd.Series | pd.DataFrame) -> tuple[pd.Series, pd.DataFrame]:
+def _to_close_matrix(
+    index_close: pd.Series | pd.DataFrame,
+) -> tuple[pd.Series, pd.DataFrame]:
     if isinstance(index_close, pd.DataFrame):
         if index_close.empty or index_close.shape[1] == 0:
             raise ValueError("index_close DataFrame must include at least one column")
@@ -55,7 +57,9 @@ def compute_regime(
     }
 
     if cfg.use_breadth and close_matrix.shape[1] > 1:
-        above_slow = close_matrix.gt(close_matrix.apply(lambda s: ema(s, EMA_SLOW_WINDOW)))
+        above_slow = close_matrix.gt(
+            close_matrix.apply(lambda s: ema(s, EMA_SLOW_WINDOW))
+        )
         breadth_frac = above_slow.mean(axis=1)
         signals["breadth_ok"] = breadth_frac >= cfg.breadth_min_frac
 

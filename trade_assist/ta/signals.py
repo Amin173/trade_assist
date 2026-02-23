@@ -25,8 +25,12 @@ def summarize_signals(ta: TickerTA) -> dict[str, str]:
 
     macd_state = "bullish" if last["MACD"] > last["MACDSignal"] else "bearish"
 
-    dist_50 = (last[COL_CLOSE] / last["SMA50"] - 1.0) if pd.notna(last["SMA50"]) else np.nan
-    dist_200 = (last[COL_CLOSE] / last["SMA200"] - 1.0) if pd.notna(last["SMA200"]) else np.nan
+    dist_50 = (
+        (last[COL_CLOSE] / last["SMA50"] - 1.0) if pd.notna(last["SMA50"]) else np.nan
+    )
+    dist_200 = (
+        (last[COL_CLOSE] / last["SMA200"] - 1.0) if pd.notna(last["SMA200"]) else np.nan
+    )
 
     return {
         "trend_regime": trend,
@@ -34,7 +38,11 @@ def summarize_signals(ta: TickerTA) -> dict[str, str]:
         "macd": macd_state,
         "dist_to_sma50": f"{dist_50 * 100:.2f}%" if np.isfinite(dist_50) else "n/a",
         "dist_to_sma200": f"{dist_200 * 100:.2f}%" if np.isfinite(dist_200) else "n/a",
-        "atr14_pct": f"{(last['ATR14'] / max(float(last[COL_CLOSE]), EPSILON)) * 100:.2f}%",
+        "atr14_pct": (
+            f"{(last['ATR14'] / max(float(last[COL_CLOSE]), EPSILON)) * 100:.2f}%"
+        ),
         "vol20_ann": f"{last['Vol20'] * 100:.2f}%",
-        "max_drawdown": f"{ta.mdd * 100:.2f}% ({ta.mdd_peak.date()} -> {ta.mdd_trough.date()})",
+        "max_drawdown": (
+            f"{ta.mdd * 100:.2f}% ({ta.mdd_peak.date()} -> {ta.mdd_trough.date()})"
+        ),
     }

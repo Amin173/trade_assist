@@ -6,7 +6,6 @@ from typing import Any
 
 from jsonschema import ValidationError, validate
 
-
 _SCHEMA_FILE = {
     "backtest": "backtest.schema.json",
     "recommend": "recommend.schema.json",

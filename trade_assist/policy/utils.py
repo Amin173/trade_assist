@@ -3,7 +3,13 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from .constants import EPSILON, SHRINKAGE_LAMBDA, SHRINKAGE_MIN_SAMPLES, ZSCORE_MIN_PERIODS, ZSCORE_WINDOW
+from .constants import (
+    EPSILON,
+    SHRINKAGE_LAMBDA,
+    SHRINKAGE_MIN_SAMPLES,
+    ZSCORE_MIN_PERIODS,
+    ZSCORE_WINDOW,
+)
 
 
 def zscore(series: pd.Series) -> pd.Series:

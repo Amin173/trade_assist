@@ -10,7 +10,7 @@ setup(
     include_package_data=True,
     install_requires=["yfinance", "pandas", "numpy", "matplotlib", "jsonschema"],
     extras_require={
-        "dev": ["pytest>=8.0"],
+        "dev": ["pytest>=8.0", "black>=24.0", "mypy>=1.8", "flake8>=7.0"],
     },
     python_requires=">=3.10",
     entry_points={

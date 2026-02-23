@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import numpy as np
-
 from trade_assist.policy import PolicyConfig, run_policy
 from trade_assist.policy.constants import EVENT_RISK_EXIT
 from trade_assist.ta.constants import COL_CLOSE, COL_HIGH, COL_LOW, COL_OPEN
@@ -15,8 +13,15 @@ def test_backtest_allows_sells_when_min_adv_blocks_buys(ohlcv_factory):
             "min_hold_days": 0,
             "gross_cap_risk_on": 0.0,
             "gross_cap_risk_off": 0.0,
-            "liquidity": {"min_adv_dollars": 1_000_000_000.0, "max_trade_adv_fraction": 1.0},
-            "risk_exit": {"stop_loss_pct": 0.0, "trailing_stop_pct": 0.0, "cooldown_days": 0},
+            "liquidity": {
+                "min_adv_dollars": 1_000_000_000.0,
+                "max_trade_adv_fraction": 1.0,
+            },
+            "risk_exit": {
+                "stop_loss_pct": 0.0,
+                "trailing_stop_pct": 0.0,
+                "cooldown_days": 0,
+            },
         }
     )
 
@@ -41,7 +46,11 @@ def test_backtest_max_trade_adv_fraction_zero_blocks_all_trading(ohlcv_factory):
             "rebalance_freq": "B",
             "min_hold_days": 0,
             "liquidity": {"min_adv_dollars": 0.0, "max_trade_adv_fraction": 0.0},
-            "risk_exit": {"stop_loss_pct": 0.0, "trailing_stop_pct": 0.0, "cooldown_days": 0},
+            "risk_exit": {
+                "stop_loss_pct": 0.0,
+                "trailing_stop_pct": 0.0,
+                "cooldown_days": 0,
+            },
         }
     )
 
@@ -58,21 +67,33 @@ def test_backtest_max_trade_adv_fraction_zero_blocks_all_trading(ohlcv_factory):
 
 
 def test_backtest_trailing_stop_forces_exit_even_without_rebalance(ohlcv_factory):
-    df = ohlcv_factory(periods=120, start_price=100.0, step=1.0, volume=5_000_000.0).copy()
+    df = ohlcv_factory(
+        periods=120, start_price=100.0, step=1.0, volume=5_000_000.0
+    ).copy()
     peak_ix = 85
     peak_price = float(df.iloc[peak_ix][COL_CLOSE])
     # Force a >20% drawdown from local peak to trigger trailing stop.
     df.loc[df.index[peak_ix + 1] :, COL_CLOSE] = peak_price * 0.75
-    df.loc[df.index[peak_ix + 1] :, COL_OPEN] = df.loc[df.index[peak_ix + 1] :, COL_CLOSE]
-    df.loc[df.index[peak_ix + 1] :, COL_HIGH] = df.loc[df.index[peak_ix + 1] :, COL_CLOSE] * 1.01
-    df.loc[df.index[peak_ix + 1] :, COL_LOW] = df.loc[df.index[peak_ix + 1] :, COL_CLOSE] * 0.99
+    df.loc[df.index[peak_ix + 1] :, COL_OPEN] = df.loc[
+        df.index[peak_ix + 1] :, COL_CLOSE
+    ]
+    df.loc[df.index[peak_ix + 1] :, COL_HIGH] = (
+        df.loc[df.index[peak_ix + 1] :, COL_CLOSE] * 1.01
+    )
+    df.loc[df.index[peak_ix + 1] :, COL_LOW] = (
+        df.loc[df.index[peak_ix + 1] :, COL_CLOSE] * 0.99
+    )
 
     policy = PolicyConfig.from_dict(
         {
             "rebalance_freq": "YE",
             "min_hold_days": 0,
             "liquidity": {"min_adv_dollars": 0.0, "max_trade_adv_fraction": 1.0},
-            "risk_exit": {"stop_loss_pct": 0.0, "trailing_stop_pct": 0.2, "cooldown_days": 10},
+            "risk_exit": {
+                "stop_loss_pct": 0.0,
+                "trailing_stop_pct": 0.2,
+                "cooldown_days": 10,
+            },
         }
     )
 
@@ -101,7 +122,11 @@ def test_backtest_min_trade_shares_blocks_dust_rebalances(ohlcv_factory):
             "gross_cap_risk_on": 1.0,
             "gross_cap_risk_off": 1.0,
             "liquidity": {"min_adv_dollars": 0.0, "max_trade_adv_fraction": 1.0},
-            "risk_exit": {"stop_loss_pct": 0.0, "trailing_stop_pct": 0.0, "cooldown_days": 0},
+            "risk_exit": {
+                "stop_loss_pct": 0.0,
+                "trailing_stop_pct": 0.0,
+                "cooldown_days": 0,
+            },
         }
     )
 

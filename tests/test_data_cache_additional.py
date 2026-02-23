@@ -34,7 +34,9 @@ def test_fetch_ohlcv_stale_cache_triggers_download(tmp_path, ohlcv_factory):
     assert len(out) == len(fresh)
 
 
-def test_fetch_ohlcv_corrupt_fresh_cache_downloads_successfully(tmp_path, ohlcv_factory):
+def test_fetch_ohlcv_corrupt_fresh_cache_downloads_successfully(
+    tmp_path, ohlcv_factory
+):
     ticker = "AAA"
     period = "1y"
     interval = "1d"
@@ -68,7 +70,9 @@ def test_fetch_ohlcv_corrupt_cache_and_failed_download_raises(tmp_path):
     cache_path.parent.mkdir(parents=True, exist_ok=True)
     cache_path.write_text("bad,data\nx,y\n", encoding="utf-8")
 
-    with patch("trade_assist.ta.data.yf.download", side_effect=RuntimeError("download error")) as mock_download:
+    with patch(
+        "trade_assist.ta.data.yf.download", side_effect=RuntimeError("download error")
+    ) as mock_download:
         with pytest.raises(Exception):
             fetch_ohlcv(
                 ticker=ticker,

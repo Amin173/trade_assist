@@ -50,8 +50,16 @@ def _apply_liquidity_to_target_shares(
     max_frac = max(float(max_trade_adv_fraction), 0.0)
 
     for ticker in adjusted.index:
-        px = float(latest_prices.loc[ticker]) if pd.notna(latest_prices.loc[ticker]) else np.nan
-        adv = float(latest_adv_dollars.loc[ticker]) if pd.notna(latest_adv_dollars.loc[ticker]) else np.nan
+        px = (
+            float(latest_prices.loc[ticker])
+            if pd.notna(latest_prices.loc[ticker])
+            else np.nan
+        )
+        adv = (
+            float(latest_adv_dollars.loc[ticker])
+            if pd.notna(latest_adv_dollars.loc[ticker])
+            else np.nan
+        )
         if not np.isfinite(px) or px <= 0:
             adjusted.loc[ticker] = current_shares.loc[ticker]
             notes[ticker] = REASON_UNTRADABLE_PRICE
@@ -68,7 +76,9 @@ def _apply_liquidity_to_target_shares(
 
         if delta > 0 and min_adv_dollars > 0 and adv < min_adv_dollars:
             adjusted.loc[ticker] = current_shares.loc[ticker]
-            notes[ticker] = REASON_ADV_BELOW_TEMPLATE.format(adv=adv, min_adv=min_adv_dollars)
+            notes[ticker] = REASON_ADV_BELOW_TEMPLATE.format(
+                adv=adv, min_adv=min_adv_dollars
+            )
             continue
 
         max_notional = adv * max_frac
@@ -95,11 +105,18 @@ def _latest_target_weights(
     feats = {ticker: build_asset_features(ohlcv_map[ticker]) for ticker in tickers}
     scores = score_assets(feats, config.score_weights)
 
-    close_df = pd.concat({ticker: ohlcv_map[ticker][COL_CLOSE] for ticker in tickers}, axis=1)
+    close_df = pd.concat(
+        {ticker: ohlcv_map[ticker][COL_CLOSE] for ticker in tickers}, axis=1
+    )
     ret_df = close_df.pct_change()
     day = close_df.index[-1]
 
-    regime = compute_regime(index_close, config=config.regime).reindex(close_df.index).fillna(0).astype(int)
+    regime = (
+        compute_regime(index_close, config=config.regime)
+        .reindex(close_df.index)
+        .fillna(0)
+        .astype(int)
+    )
     risk_on = int(regime.loc[day])
     gross_cap = config.gross_cap_risk_on if risk_on else config.gross_cap_risk_off
     target_vol = (
@@ -150,19 +167,25 @@ def recommend_positions(
     min_trade_shares: float = 1.0,
 ) -> tuple[list[Recommendation], pd.Series, int]:
     tickers = list(ohlcv_map.keys())
-    close_df = pd.concat({ticker: ohlcv_map[ticker][COL_CLOSE] for ticker in tickers}, axis=1)
+    close_df = pd.concat(
+        {ticker: ohlcv_map[ticker][COL_CLOSE] for ticker in tickers}, axis=1
+    )
     volume_df = pd.concat(
         {
-            ticker: ohlcv_map[ticker][COL_VOLUME]
-            if COL_VOLUME in ohlcv_map[ticker]
-            else pd.Series(0.0, index=close_df.index)
+            ticker: (
+                ohlcv_map[ticker][COL_VOLUME]
+                if COL_VOLUME in ohlcv_map[ticker]
+                else pd.Series(0.0, index=close_df.index)
+            )
             for ticker in tickers
         },
         axis=1,
     )
     latest_day = close_df.index[-1]
     latest_prices = close_df.loc[latest_day].reindex(tickers)
-    latest_adv_dollars = (volume_df.loc[latest_day].reindex(tickers) * latest_prices).fillna(0.0)
+    latest_adv_dollars = (
+        volume_df.loc[latest_day].reindex(tickers) * latest_prices
+    ).fillna(0.0)
 
     current_shares = pd.Series(0.0, index=tickers)
     for ticker, shares in current_positions.items():
@@ -170,7 +193,9 @@ def recommend_positions(
             current_shares.loc[ticker] = float(shares)
 
     equity = float(current_cash) + float((current_shares * latest_prices).sum())
-    target_w, risk_on, feats, scores = _latest_target_weights(ohlcv_map, index_close, config)
+    target_w, risk_on, feats, scores = _latest_target_weights(
+        ohlcv_map, index_close, config
+    )
 
     target_dollars = equity * target_w
     target_shares = (
@@ -201,7 +226,11 @@ def recommend_positions(
             action = ACTION_SELL
 
         c_over_ema200 = float(feats[ticker].iloc[-1]["c_over_ema200"])
-        score = float(scores[ticker].iloc[-1]) if pd.notna(scores[ticker].iloc[-1]) else float("nan")
+        score = (
+            float(scores[ticker].iloc[-1])
+            if pd.notna(scores[ticker].iloc[-1])
+            else float("nan")
+        )
         if not np.isfinite(c_over_ema200) or c_over_ema200 <= 0:
             reason = REASON_BELOW_EMA200
         elif np.isfinite(score):

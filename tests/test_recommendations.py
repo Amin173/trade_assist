@@ -14,7 +14,10 @@ def test_recommendation_applies_liquidity_constraints(ohlcv_factory):
         {
             "gross_cap_risk_on": 1.0,
             "gross_cap_risk_off": 1.0,
-            "liquidity": {"min_adv_dollars": 100_000_000.0, "max_trade_adv_fraction": 0.01},
+            "liquidity": {
+                "min_adv_dollars": 100_000_000.0,
+                "max_trade_adv_fraction": 0.01,
+            },
         }
     )
 

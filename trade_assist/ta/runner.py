@@ -20,8 +20,10 @@ def run_ta(tickers: list[str], plot: bool = True) -> dict[str, TickerTA]:
         for k, v in summary.items():
             print(f"- {k}: {v}")
 
-        print(f"- support_levels (pivot clusters): {[round(x, 2) for x in ta.levels_support]}")
-        print(f"- resistance_levels (pivot clusters): {[round(x, 2) for x in ta.levels_resistance]}")
+        support_levels = [round(x, 2) for x in ta.levels_support]
+        resistance_levels = [round(x, 2) for x in ta.levels_resistance]
+        print(f"- support_levels (pivot clusters): {support_levels}")
+        print(f"- resistance_levels (pivot clusters): {resistance_levels}")
 
         if plot:
             plot_ticker(ta, last_n=LOOKBACK_SESSIONS)

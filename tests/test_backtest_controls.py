@@ -15,7 +15,11 @@ def test_backtest_liquidity_cap_limits_buy_notional(ohlcv_factory):
             "gross_cap_risk_on": 1.0,
             "gross_cap_risk_off": 1.0,
             "liquidity": {"min_adv_dollars": 0, "max_trade_adv_fraction": 0.01},
-            "risk_exit": {"stop_loss_pct": 0.0, "trailing_stop_pct": 0.0, "cooldown_days": 0},
+            "risk_exit": {
+                "stop_loss_pct": 0.0,
+                "trailing_stop_pct": 0.0,
+                "cooldown_days": 0,
+            },
         }
     )
 
@@ -40,7 +44,9 @@ def test_backtest_liquidity_cap_limits_buy_notional(ohlcv_factory):
 def test_backtest_stop_loss_exit_and_cooldown_prevent_reentry(ohlcv_factory):
     # Keep enough history before the shock so momentum/zscore features are available
     # and the policy can hold a live position when the stop-loss check runs.
-    df = ohlcv_factory(periods=380, start_price=100.0, step=0.3, volume=5_000_000.0).copy()
+    df = ohlcv_factory(
+        periods=380, start_price=100.0, step=0.3, volume=5_000_000.0
+    ).copy()
     # Inject a sharp drop that should trigger stop-loss from initial entry basis.
     shock_day = df.index[350]
     df.loc[shock_day:, "Close"] = df.loc[shock_day:, "Close"] * 0.45
@@ -55,7 +61,11 @@ def test_backtest_stop_loss_exit_and_cooldown_prevent_reentry(ohlcv_factory):
             "gross_cap_risk_on": 1.0,
             "gross_cap_risk_off": 1.0,
             "liquidity": {"min_adv_dollars": 0, "max_trade_adv_fraction": 1.0},
-            "risk_exit": {"stop_loss_pct": 0.1, "trailing_stop_pct": 0.0, "cooldown_days": 1000},
+            "risk_exit": {
+                "stop_loss_pct": 0.1,
+                "trailing_stop_pct": 0.0,
+                "cooldown_days": 1000,
+            },
         }
     )
 

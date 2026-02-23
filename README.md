@@ -17,7 +17,7 @@ pip install -e .
 
 This installs the package and all runtime dependencies from `setup.py`.
 
-For development (includes `pytest`):
+For development (includes `pytest`, `black`, `mypy`, and `flake8`):
 
 ```bash
 pip install -e ".[dev]"
@@ -56,10 +56,20 @@ Templates:
 - Quickstart (how to configure and test your own symbols/positions): `QUICKSTART.md`
 - Full config parameter reference: `CONFIG.md`
 
-## Tests
+## Quality Checks
 
 ```bash
-pytest -q
+make check
+```
+
+Individual commands:
+
+```bash
+make format
+make check-format
+make lint
+make typecheck
+make test
 ```
 
 ## Notes

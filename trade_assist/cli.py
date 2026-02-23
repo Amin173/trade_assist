@@ -63,7 +63,9 @@ def _load_config(path: str) -> tuple[dict[str, Any], Path]:
         return json.load(f), cfg_path
 
 
-def _require_keys(payload: dict[str, Any], required: list[str], scope: str = "config") -> None:
+def _require_keys(
+    payload: dict[str, Any], required: list[str], scope: str = "config"
+) -> None:
     missing = [k for k in required if k not in payload]
     if missing:
         raise ValueError(f"Missing required {scope} key(s): {', '.join(missing)}")
@@ -92,7 +94,9 @@ def _extract_data_cfg(
     use_cache = bool(data_cfg.get(KEY_USE_CACHE, False))
     cache_dir = str(data_cfg.get(KEY_CACHE_DIR, DEFAULT_CACHE_DIR))
     cache_ttl_hours_raw = data_cfg.get(KEY_CACHE_TTL_HOURS, DEFAULT_CACHE_TTL_HOURS)
-    cache_ttl_hours = None if cache_ttl_hours_raw is None else float(cache_ttl_hours_raw)
+    cache_ttl_hours = (
+        None if cache_ttl_hours_raw is None else float(cache_ttl_hours_raw)
+    )
     force_refresh = bool(data_cfg.get(KEY_FORCE_REFRESH, False))
     return (
         tickers,
@@ -136,7 +140,9 @@ def _load_market_data(
         force_refresh=force_refresh,
     )
     regime_symbols = [index_ticker]
-    regime_symbols.extend([symbol for symbol in regime_tickers if symbol != index_ticker])
+    regime_symbols.extend(
+        [symbol for symbol in regime_tickers if symbol != index_ticker]
+    )
     regime_map = fetch_ohlcv_map(
         regime_symbols,
         period=period,
@@ -146,7 +152,9 @@ def _load_market_data(
         cache_ttl_hours=cache_ttl_hours,
         force_refresh=force_refresh,
     )
-    regime_close = pd.concat({symbol: regime_map[symbol][COL_CLOSE] for symbol in regime_symbols}, axis=1)
+    regime_close = pd.concat(
+        {symbol: regime_map[symbol][COL_CLOSE] for symbol in regime_symbols}, axis=1
+    )
     if regime_close.shape[1] == 1:
         return ohlcv_map, regime_close.iloc[:, 0]
     return ohlcv_map, regime_close
@@ -217,14 +225,22 @@ def _compute_performance_stats(equity_curve: pd.Series) -> dict[str, float]:
     total_return = float(eq.iloc[-1] / eq.iloc[0] - 1.0)
     duration_days = max((eq.index[-1] - eq.index[0]).days, 1)
     years = duration_days / DEFAULT_DAYS_PER_YEAR
-    cagr = float((eq.iloc[-1] / eq.iloc[0]) ** (1.0 / years) - 1.0) if eq.iloc[0] > 0.0 else 0.0
+    cagr = (
+        float((eq.iloc[-1] / eq.iloc[0]) ** (1.0 / years) - 1.0)
+        if eq.iloc[0] > 0.0
+        else 0.0
+    )
 
     annualized_vol = float(returns.std() * np.sqrt(ANNUAL_TRADING_DAYS))
     annualized_mean = float(returns.mean() * ANNUAL_TRADING_DAYS)
     sharpe = float(annualized_mean / annualized_vol) if annualized_vol > 0.0 else 0.0
 
     downside = returns[returns < 0]
-    downside_vol = float(downside.std() * np.sqrt(ANNUAL_TRADING_DAYS)) if len(downside) > 1 else 0.0
+    downside_vol = (
+        float(downside.std() * np.sqrt(ANNUAL_TRADING_DAYS))
+        if len(downside) > 1
+        else 0.0
+    )
     sortino = float(annualized_mean / downside_vol) if downside_vol > 0.0 else 0.0
 
     running_max = eq.cummax()
@@ -290,11 +306,15 @@ def _compute_full_hold_benchmarks(
     return out
 
 
-def _handle_backtest_output(backtest, output_cfg: dict[str, Any], ohlcv_map: dict[str, pd.DataFrame]) -> None:
+def _handle_backtest_output(
+    backtest, output_cfg: dict[str, Any], ohlcv_map: dict[str, pd.DataFrame]
+) -> None:
     verbose = bool(output_cfg.get("verbose", False))
     print_performance_stats = bool(output_cfg.get("print_performance_stats", True))
     print_rebalance_log = bool(output_cfg.get("print_rebalance_log", False))
-    rebalance_tail = int(output_cfg.get("rebalance_log_tail", DEFAULT_REBALANCE_LOG_TAIL))
+    rebalance_tail = int(
+        output_cfg.get("rebalance_log_tail", DEFAULT_REBALANCE_LOG_TAIL)
+    )
     save_equity_csv = output_cfg.get("save_equity_curve_csv")
     save_account_history_csv = output_cfg.get("save_account_history_csv")
     save_position_values_csv = output_cfg.get("save_position_values_csv")
@@ -306,7 +326,9 @@ def _handle_backtest_output(backtest, output_cfg: dict[str, Any], ohlcv_map: dic
     plot_full_hold_benchmarks = bool(output_cfg.get("plot_full_hold_benchmarks", False))
     full_hold_benchmark_tickers = output_cfg.get("full_hold_benchmark_tickers")
     equity_plot_path = output_cfg.get("equity_curve_plot_path")
-    position_value_cols = [col for col in backtest.account_history.columns if str(col).endswith("_value")]
+    position_value_cols = [
+        col for col in backtest.account_history.columns if str(col).endswith("_value")
+    ]
     benchmark_tickers = (
         [str(x) for x in full_hold_benchmark_tickers]
         if isinstance(full_hold_benchmark_tickers, list)
@@ -321,7 +343,9 @@ def _handle_backtest_output(backtest, output_cfg: dict[str, Any], ohlcv_map: dic
             invested_mask = invested.abs() > INVESTED_EPSILON
             if invested_mask.any():
                 benchmark_start_date = invested_mask[invested_mask].index[0]
-        start_equity = float(account.loc[benchmark_start_date, "equity"]) if len(account) else 0.0
+        start_equity = (
+            float(account.loc[benchmark_start_date, "equity"]) if len(account) else 0.0
+        )
         full_hold_benchmarks = _compute_full_hold_benchmarks(
             ohlcv_map=ohlcv_map,
             index=account.index,
@@ -394,7 +418,9 @@ def _handle_backtest_output(backtest, output_cfg: dict[str, Any], ohlcv_map: dic
         if "cash" in account.columns:
             ax.plot(account.index, account["cash"], label="Cash", linewidth=1.8)
         for col in position_value_cols:
-            ax.plot(account.index, account[col], label=col.replace("_value", ""), alpha=0.9)
+            ax.plot(
+                account.index, account[col], label=col.replace("_value", ""), alpha=0.9
+            )
         if plot_full_hold_benchmarks and not full_hold_benchmarks.empty:
             for col in full_hold_benchmarks.columns:
                 label = col.replace("_full_hold", "") + " (full hold)"
@@ -532,14 +558,22 @@ def recommend_from_config(config_path: str) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="trade-assist", description="Trade Assist CLI")
+    parser = argparse.ArgumentParser(
+        prog="trade-assist", description="Trade Assist CLI"
+    )
     sub = parser.add_subparsers(dest="command", required=True)
 
     backtest_parser = sub.add_parser("backtest", help="Run policy backtest")
-    backtest_parser.add_argument("--config", required=True, help="Path to backtest JSON config file")
+    backtest_parser.add_argument(
+        "--config", required=True, help="Path to backtest JSON config file"
+    )
 
-    recommend_parser = sub.add_parser("recommend", help="Generate buy/sell/hold recommendations")
-    recommend_parser.add_argument("--config", required=True, help="Path to recommendation JSON config file")
+    recommend_parser = sub.add_parser(
+        "recommend", help="Generate buy/sell/hold recommendations"
+    )
+    recommend_parser.add_argument(
+        "--config", required=True, help="Path to recommendation JSON config file"
+    )
 
     return parser
 

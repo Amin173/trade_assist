@@ -40,7 +40,9 @@ def test_fetch_ohlcv_falls_back_to_cache_when_download_fails(tmp_path, ohlcv_fac
     cached = ohlcv_factory(periods=20)
     cached.to_csv(cache_path)
 
-    with patch("trade_assist.ta.data.yf.download", side_effect=RuntimeError("network down")) as mock_download:
+    with patch(
+        "trade_assist.ta.data.yf.download", side_effect=RuntimeError("network down")
+    ) as mock_download:
         out = fetch_ohlcv(
             ticker=ticker,
             period=period,

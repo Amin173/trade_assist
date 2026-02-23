@@ -34,7 +34,9 @@ def test_recommend_positions_threshold_boundary(monkeypatch):
         return target_w, 1, feats, scores
 
     monkeypatch.setattr(recmod, "_latest_target_weights", fake_latest_target_weights)
-    cfg = PolicyConfig.from_dict({"liquidity": {"min_adv_dollars": 0.0, "max_trade_adv_fraction": 1.0}})
+    cfg = PolicyConfig.from_dict(
+        {"liquidity": {"min_adv_dollars": 0.0, "max_trade_adv_fraction": 1.0}}
+    )
 
     # target_shares = equity / price = 100 / 100 = 1.0
     recs_equal, _, _ = recmod.recommend_positions(
@@ -70,7 +72,9 @@ def test_recommend_positions_liquidity_cap_reason_and_target(monkeypatch):
         return target_w, 1, feats, scores
 
     monkeypatch.setattr(recmod, "_latest_target_weights", fake_latest_target_weights)
-    cfg = PolicyConfig.from_dict({"liquidity": {"min_adv_dollars": 0.0, "max_trade_adv_fraction": 0.1}})
+    cfg = PolicyConfig.from_dict(
+        {"liquidity": {"min_adv_dollars": 0.0, "max_trade_adv_fraction": 0.1}}
+    )
 
     # equity=10000 -> raw target shares=100; cap=10% * $10,000 = $1,000 -> 10 shares
     recs, _, _ = recmod.recommend_positions(

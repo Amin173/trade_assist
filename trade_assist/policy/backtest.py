@@ -43,7 +43,11 @@ def _apply_liquidity_caps(
             continue
 
         px = float(fill_px.loc[ticker]) if pd.notna(fill_px.loc[ticker]) else np.nan
-        adv = float(adv_dollars.loc[ticker]) if pd.notna(adv_dollars.loc[ticker]) else np.nan
+        adv = (
+            float(adv_dollars.loc[ticker])
+            if pd.notna(adv_dollars.loc[ticker])
+            else np.nan
+        )
         if not np.isfinite(px) or px <= 0.0 or not np.isfinite(adv) or adv <= 0.0:
             capped.loc[ticker] = 0.0
             touched += 1
@@ -104,21 +108,34 @@ def run_policy(
     feats = {ticker: build_asset_features(ohlcv_map[ticker]) for ticker in tickers}
     scores = score_assets(feats, cfg.score_weights)
 
-    regime = compute_regime(index_close, config=cfg.regime).reindex(dates).fillna(0).astype(int)
+    regime = (
+        compute_regime(index_close, config=cfg.regime)
+        .reindex(dates)
+        .fillna(0)
+        .astype(int)
+    )
 
-    close_df = pd.concat({ticker: ohlcv_map[ticker][COL_CLOSE] for ticker in tickers}, axis=1)
+    close_df = pd.concat(
+        {ticker: ohlcv_map[ticker][COL_CLOSE] for ticker in tickers}, axis=1
+    )
     open_df = pd.concat(
         {
-            ticker: ohlcv_map[ticker][COL_OPEN] if COL_OPEN in ohlcv_map[ticker] else ohlcv_map[ticker][COL_CLOSE]
+            ticker: (
+                ohlcv_map[ticker][COL_OPEN]
+                if COL_OPEN in ohlcv_map[ticker]
+                else ohlcv_map[ticker][COL_CLOSE]
+            )
             for ticker in tickers
         },
         axis=1,
     )
     volume_df = pd.concat(
         {
-            ticker: ohlcv_map[ticker][COL_VOLUME]
-            if COL_VOLUME in ohlcv_map[ticker]
-            else pd.Series(0.0, index=dates)
+            ticker: (
+                ohlcv_map[ticker][COL_VOLUME]
+                if COL_VOLUME in ohlcv_map[ticker]
+                else pd.Series(0.0, index=dates)
+            )
             for ticker in tickers
         },
         axis=1,
@@ -157,7 +174,11 @@ def run_policy(
         prices = close_df.loc[day].reindex(tickers)
         position_values = (holdings * prices).fillna(0.0)
         equity = cash + float(position_values.sum())
-        row: dict[str, float | pd.Timestamp] = {"date": day, "equity": float(equity), "cash": float(cash)}
+        row: dict[str, float | pd.Timestamp] = {
+            "date": day,
+            "equity": float(equity),
+            "cash": float(cash),
+        }
         for ticker in tickers:
             row[f"{ticker}_value"] = float(position_values.loc[ticker])
         account_rows.append(row)
@@ -172,22 +193,31 @@ def run_policy(
                     continue
                 px_val = float(px)
 
-                if pd.isna(peak_since_entry.loc[ticker]) or float(peak_since_entry.loc[ticker]) <= 0.0:
+                if (
+                    pd.isna(peak_since_entry.loc[ticker])
+                    or float(peak_since_entry.loc[ticker]) <= 0.0
+                ):
                     peak_since_entry.loc[ticker] = px_val
                 else:
-                    peak_since_entry.loc[ticker] = max(float(peak_since_entry.loc[ticker]), px_val)
+                    peak_since_entry.loc[ticker] = max(
+                        float(peak_since_entry.loc[ticker]), px_val
+                    )
 
                 stop_hit = False
                 trail_hit = False
                 if cfg.risk_exit.stop_loss_pct > 0.0:
                     basis = entry_price.loc[ticker]
                     if pd.notna(basis) and float(basis) > 0.0:
-                        stop_hit = px_val <= float(basis) * (1.0 - cfg.risk_exit.stop_loss_pct)
+                        stop_hit = px_val <= float(basis) * (
+                            1.0 - cfg.risk_exit.stop_loss_pct
+                        )
 
                 if cfg.risk_exit.trailing_stop_pct > 0.0:
                     peak = peak_since_entry.loc[ticker]
                     if pd.notna(peak) and float(peak) > 0.0:
-                        trail_hit = px_val <= float(peak) * (1.0 - cfg.risk_exit.trailing_stop_pct)
+                        trail_hit = px_val <= float(peak) * (
+                            1.0 - cfg.risk_exit.trailing_stop_pct
+                        )
 
                 if stop_hit or trail_hit:
                     reason_parts: list[str] = []
@@ -204,14 +234,20 @@ def run_policy(
         cash_before = cash
         risk_on = int(regime.loc[day]) == RISK_ON_FLAG
         gross_cap = cfg.gross_cap_risk_on if risk_on else cfg.gross_cap_risk_off
-        target_vol = cfg.target_vol_risk_on if risk_on else cfg.target_vol_risk_on * cfg.risk_off_target_vol_multiplier
+        target_vol = (
+            cfg.target_vol_risk_on
+            if risk_on
+            else cfg.target_vol_risk_on * cfg.risk_off_target_vol_multiplier
+        )
 
         target_shares = holdings.copy()
         eligible: list[str] = []
         if do_rebalance:
             target_shares = pd.Series(0.0, index=tickers)
             for ticker in tickers:
-                in_cooldown = holdings.loc[ticker] <= 0.0 and day < cooldown_until.loc[ticker]
+                in_cooldown = (
+                    holdings.loc[ticker] <= 0.0 and day < cooldown_until.loc[ticker]
+                )
                 if in_cooldown:
                     continue
                 val = feats[ticker].loc[day, "c_over_ema200"]
@@ -352,8 +388,14 @@ def run_policy(
             if new_shares <= 0.0:
                 entry_price.loc[ticker] = np.nan
                 peak_since_entry.loc[ticker] = np.nan
-                if ticker in forced_exit_reasons and prev_shares > 0.0 and cfg.risk_exit.cooldown_days > 0.0:
-                    cooldown_until.loc[ticker] = day + pd.Timedelta(days=cfg.risk_exit.cooldown_days)
+                if (
+                    ticker in forced_exit_reasons
+                    and prev_shares > 0.0
+                    and cfg.risk_exit.cooldown_days > 0.0
+                ):
+                    cooldown_until.loc[ticker] = day + pd.Timedelta(
+                        days=cfg.risk_exit.cooldown_days
+                    )
                 continue
 
             if prev_shares <= 0.0 and new_shares > 0.0:
@@ -374,10 +416,15 @@ def run_policy(
                     entry_price.loc[ticker] = float(fill)
 
             if pd.notna(day_px) and float(day_px) > 0.0:
-                if pd.isna(peak_since_entry.loc[ticker]) or float(peak_since_entry.loc[ticker]) <= 0.0:
+                if (
+                    pd.isna(peak_since_entry.loc[ticker])
+                    or float(peak_since_entry.loc[ticker]) <= 0.0
+                ):
                     peak_since_entry.loc[ticker] = float(day_px)
                 else:
-                    peak_since_entry.loc[ticker] = max(float(peak_since_entry.loc[ticker]), float(day_px))
+                    peak_since_entry.loc[ticker] = max(
+                        float(peak_since_entry.loc[ticker]), float(day_px)
+                    )
 
         event = (
             EVENT_REBALANCE_AND_RISK_EXIT
@@ -409,7 +456,11 @@ def run_policy(
     final_prices = close_df.loc[final_day].reindex(tickers)
     final_position_values = (holdings * final_prices).fillna(0.0)
     final_equity = cash + float(final_position_values.sum())
-    final_row: dict[str, float | pd.Timestamp] = {"date": final_day, "equity": float(final_equity), "cash": float(cash)}
+    final_row: dict[str, float | pd.Timestamp] = {
+        "date": final_day,
+        "equity": float(final_equity),
+        "cash": float(cash),
+    }
     for ticker in tickers:
         final_row[f"{ticker}_value"] = float(final_position_values.loc[ticker])
     account_rows.append(final_row)

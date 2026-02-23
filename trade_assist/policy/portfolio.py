@@ -24,7 +24,9 @@ def softmax_weights(scores: pd.Series) -> pd.Series:
 
 
 def vol_target_scale(weights: pd.Series, cov: pd.DataFrame, target_vol: float) -> float:
-    common = [asset for asset in weights.index if asset in cov.index and asset in cov.columns]
+    common = [
+        asset for asset in weights.index if asset in cov.index and asset in cov.columns
+    ]
     if not common:
         return 0.0
 
@@ -40,5 +42,5 @@ def estimate_slippage_bps(order_dollars: float, adv_dollars: float) -> float:
     if adv_dollars <= 0:
         return SLIPPAGE_FALLBACK_BPS
     frac = abs(order_dollars) / adv_dollars
-    impact = SLIPPAGE_IMPACT_COEFF * (frac ** SLIPPAGE_IMPACT_EXP)
+    impact = SLIPPAGE_IMPACT_COEFF * (frac**SLIPPAGE_IMPACT_EXP)
     return base + impact

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
 import pandas as pd
 
@@ -87,7 +86,9 @@ def test_load_market_data_resolves_relative_cache_dir(monkeypatch, tmp_path):
     assert calls[1]["cache_dir"] == expected_cache_dir
 
 
-def test_load_market_data_with_regime_tickers_returns_close_matrix(monkeypatch, tmp_path):
+def test_load_market_data_with_regime_tickers_returns_close_matrix(
+    monkeypatch, tmp_path
+):
     cfg_path = tmp_path / "cfg.json"
     cfg_path.write_text("{}", encoding="utf-8")
 

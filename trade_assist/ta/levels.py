@@ -6,7 +6,9 @@ import numpy as np
 import pandas as pd
 
 
-def pivot_points(series: pd.Series, left: int = 3, right: int = 3, mode: str = "high") -> pd.Series:
+def pivot_points(
+    series: pd.Series, left: int = 3, right: int = 3, mode: str = "high"
+) -> pd.Series:
     """
     Identify pivot highs or lows.
     mode = 'high' -> pivot high if value is strictly greater than neighbors.

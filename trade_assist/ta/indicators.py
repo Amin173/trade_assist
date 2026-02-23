@@ -5,7 +5,13 @@ from typing import Tuple
 import numpy as np
 import pandas as pd
 
-from .constants import ATR_WINDOW, EPSILON, RSI_WINDOW, TRADING_DAYS_PER_YEAR, VOL_WINDOW
+from .constants import (
+    ATR_WINDOW,
+    EPSILON,
+    RSI_WINDOW,
+    TRADING_DAYS_PER_YEAR,
+    VOL_WINDOW,
+)
 
 
 def sma(series: pd.Series, window: int) -> pd.Series:
@@ -53,7 +59,9 @@ def true_range(high: pd.Series, low: pd.Series, close: pd.Series) -> pd.Series:
     return tr
 
 
-def atr(high: pd.Series, low: pd.Series, close: pd.Series, window: int = ATR_WINDOW) -> pd.Series:
+def atr(
+    high: pd.Series, low: pd.Series, close: pd.Series, window: int = ATR_WINDOW
+) -> pd.Series:
     tr = true_range(high, low, close)
     return tr.ewm(alpha=1 / window, adjust=False).mean()
 

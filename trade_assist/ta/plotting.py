@@ -2,7 +2,13 @@ from __future__ import annotations
 
 import matplotlib.pyplot as plt
 
-from .constants import COL_CLOSE, COL_VOLUME, LOOKBACK_SESSIONS, RSI_OVERBOUGHT, RSI_OVERSOLD
+from .constants import (
+    COL_CLOSE,
+    COL_VOLUME,
+    LOOKBACK_SESSIONS,
+    RSI_OVERBOUGHT,
+    RSI_OVERSOLD,
+)
 from .models import TickerTA
 
 

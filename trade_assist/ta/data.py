@@ -44,7 +44,9 @@ def _normalize_columns(df: pd.DataFrame, ticker: str) -> pd.DataFrame:
                 ]
                 break
 
-    out = out.rename(columns=lambda c: CANONICAL_COLUMN_MAP.get(str(c).strip().lower(), c))
+    out = out.rename(
+        columns=lambda c: CANONICAL_COLUMN_MAP.get(str(c).strip().lower(), c)
+    )
 
     # Fallback: map fuzzy names like "Close VRT" -> "Close".
     for wanted in FUZZY_COLUMN_ORDER:
@@ -65,7 +67,10 @@ def _validate_ohlcv(df: pd.DataFrame, ticker: str) -> pd.DataFrame:
     missing = sorted(required.difference(df.columns))
     if missing:
         raise RuntimeError(
-            f"Missing expected OHLCV columns for {ticker}: {missing}. Got columns: {list(df.columns)}"
+            (
+                f"Missing expected OHLCV columns for {ticker}: {missing}. "
+                f"Got columns: {list(df.columns)}"
+            )
         )
     out = df.dropna(subset=[COL_CLOSE]).sort_index()
     if out.empty:
@@ -73,7 +78,9 @@ def _validate_ohlcv(df: pd.DataFrame, ticker: str) -> pd.DataFrame:
     return out
 
 
-def _cache_file_path(cache_dir: str | Path, ticker: str, period: str, interval: str) -> Path:
+def _cache_file_path(
+    cache_dir: str | Path, ticker: str, period: str, interval: str
+) -> Path:
     safe_period = period.replace("/", "_").replace(" ", "")
     safe_interval = interval.replace("/", "_").replace(" ", "")
     return Path(cache_dir) / f"{ticker.upper()}__{safe_period}__{safe_interval}.csv"
@@ -105,7 +112,9 @@ def fetch_ohlcv(
     cache_ttl_hours: float | None = DEFAULT_CACHE_TTL_HOURS,
     force_refresh: bool = False,
 ) -> pd.DataFrame:
-    cache_path = _cache_file_path(cache_dir=cache_dir, ticker=ticker, period=period, interval=interval)
+    cache_path = _cache_file_path(
+        cache_dir=cache_dir, ticker=ticker, period=period, interval=interval
+    )
     if use_cache and not force_refresh and _is_cache_fresh(cache_path, cache_ttl_hours):
         try:
             return _read_cached_ohlcv(cache_path, ticker=ticker)
@@ -114,7 +123,9 @@ def fetch_ohlcv(
             pass
 
     try:
-        df = yf.download(ticker, period=period, interval=interval, auto_adjust=False, progress=False)
+        df = yf.download(
+            ticker, period=period, interval=interval, auto_adjust=False, progress=False
+        )
         if df.empty:
             raise RuntimeError(f"No data returned for {ticker}.")
     except Exception:

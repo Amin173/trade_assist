@@ -3,7 +3,11 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from trade_assist.policy.portfolio import estimate_slippage_bps, softmax_weights, vol_target_scale
+from trade_assist.policy.portfolio import (
+    estimate_slippage_bps,
+    softmax_weights,
+    vol_target_scale,
+)
 
 
 def test_softmax_weights_returns_zero_series_for_all_nan():

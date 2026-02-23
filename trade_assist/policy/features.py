@@ -21,16 +21,24 @@ from .utils import zscore
 def build_asset_features(ohlcv: pd.DataFrame) -> pd.DataFrame:
     close = ohlcv[COL_CLOSE]
     feats = pd.DataFrame(index=ohlcv.index)
-    feats["mom_252_21"] = close.pct_change(MOM_LONG_WINDOW) - close.pct_change(MOM_SHORT_WINDOW)
+    feats["mom_252_21"] = close.pct_change(MOM_LONG_WINDOW) - close.pct_change(
+        MOM_SHORT_WINDOW
+    )
     feats["c_over_ema200"] = close / ema(close, EMA_SLOW_WINDOW) - 1
-    feats["ema50_over_ema200"] = ema(close, EMA_FAST_WINDOW) / ema(close, EMA_SLOW_WINDOW) - 1
+    feats["ema50_over_ema200"] = (
+        ema(close, EMA_FAST_WINDOW) / ema(close, EMA_SLOW_WINDOW) - 1
+    )
     feats["vol20"] = realized_volatility(close, VOL_WINDOW)
     feats["atr14"] = atr(ohlcv[COL_HIGH], ohlcv[COL_LOW], close, ATR_WINDOW)
-    feats["breakout55"] = (close >= close.rolling(BREAKOUT_WINDOW).max().shift(1)).astype(int)
+    feats["breakout55"] = (
+        close >= close.rolling(BREAKOUT_WINDOW).max().shift(1)
+    ).astype(int)
     return feats
 
 
-def score_assets(feature_map: dict[str, pd.DataFrame], weights: ScoreWeights) -> pd.DataFrame:
+def score_assets(
+    feature_map: dict[str, pd.DataFrame], weights: ScoreWeights
+) -> pd.DataFrame:
     tickers = list(feature_map.keys())
     idx = feature_map[tickers[0]].index
     score = pd.DataFrame(index=idx, columns=tickers, dtype=float)
@@ -41,7 +49,8 @@ def score_assets(feature_map: dict[str, pd.DataFrame], weights: ScoreWeights) ->
             weights.c_over_ema200 * zscore(f["c_over_ema200"])
             + weights.ema50_over_ema200 * zscore(f["ema50_over_ema200"])
             + weights.mom_252_21 * zscore(f["mom_252_21"])
-            + weights.vol_adjusted_momentum * zscore(f["mom_252_21"] / (f["vol20"] + VOL_ADJUST_EPSILON))
+            + weights.vol_adjusted_momentum
+            * zscore(f["mom_252_21"] / (f["vol20"] + VOL_ADJUST_EPSILON))
             + weights.breakout55 * f["breakout55"]
         )
 

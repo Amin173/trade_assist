@@ -22,7 +22,9 @@ from .levels import pivot_points, top_levels
 from .models import TickerTA
 
 
-def build_features(ticker: str, period: str = DEFAULT_PERIOD, interval: str = DEFAULT_INTERVAL) -> TickerTA:
+def build_features(
+    ticker: str, period: str = DEFAULT_PERIOD, interval: str = DEFAULT_INTERVAL
+) -> TickerTA:
     df = fetch_ohlcv(ticker, period=period, interval=interval)
 
     for w in SMA_WINDOWS:
@@ -36,7 +38,9 @@ def build_features(ticker: str, period: str = DEFAULT_PERIOD, interval: str = DE
     lookback = min(len(df), LOOKBACK_SESSIONS)
     sub = df.iloc[-lookback:].copy()
 
-    piv_high = pivot_points(sub[COL_HIGH], left=PIVOT_LEFT, right=PIVOT_RIGHT, mode="high")
+    piv_high = pivot_points(
+        sub[COL_HIGH], left=PIVOT_LEFT, right=PIVOT_RIGHT, mode="high"
+    )
     piv_low = pivot_points(sub[COL_LOW], left=PIVOT_LEFT, right=PIVOT_RIGHT, mode="low")
 
     resistance = top_levels(piv_high, k=TOP_LEVEL_COUNT, tol=TOP_LEVEL_TOL)
