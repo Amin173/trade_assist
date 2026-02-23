@@ -3,7 +3,8 @@
   "data": {
     "tickers": ["NVDA"],
     "index_ticker": "SPY",
-    "period": "5y",
+    "regime_tickers": ["QQQ", "IWM"],
+    "period": "3y",
     "interval": "1d",
     "use_cache": true,
     "cache_dir": ".cache/market_data",
@@ -14,12 +15,11 @@
   "portfolio": {
     "cash": 10000,
     "positions": {
-      "MSFT": 0,
       "NVDA": 0
     }
   },
   "output": {
-    "verbose": true,
+    "verbose": false,
     "print_performance_stats": true,
     "save_performance_stats_json": "outputs/backtest_stats.json",
     "print_rebalance_log": false,

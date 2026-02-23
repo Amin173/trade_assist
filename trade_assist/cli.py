@@ -33,6 +33,7 @@ KEY_OUTPUT = "output"
 KEY_RECOMMENDATION = "recommendation"
 
 KEY_INDEX_TICKER = "index_ticker"
+KEY_REGIME_TICKERS = "regime_tickers"
 KEY_PERIOD = "period"
 KEY_INTERVAL = "interval"
 KEY_USE_CACHE = "use_cache"
@@ -66,7 +67,7 @@ def _require_keys(payload: dict[str, Any], required: list[str], scope: str = "co
 
 def _extract_data_cfg(
     payload: dict[str, Any],
-) -> tuple[list[str], str, str, str, bool, str, float | None, bool]:
+) -> tuple[list[str], str, list[str], str, str, bool, str, float | None, bool]:
     _require_keys(payload, [KEY_DATA], scope="config")
     data_cfg = payload[KEY_DATA]
     _require_keys(data_cfg, [KEY_TICKERS], scope="data")
@@ -76,6 +77,12 @@ def _extract_data_cfg(
         raise ValueError("data.tickers must be a non-empty list of symbols")
 
     index_ticker = data_cfg.get(KEY_INDEX_TICKER, DEFAULT_INDEX_TICKER)
+    regime_tickers_raw = data_cfg.get(KEY_REGIME_TICKERS, [])
+    if regime_tickers_raw is None:
+        regime_tickers_raw = []
+    if not isinstance(regime_tickers_raw, list):
+        raise ValueError("data.regime_tickers must be a list of symbols when provided")
+    regime_tickers = [str(symbol) for symbol in regime_tickers_raw if str(symbol)]
     period = data_cfg.get(KEY_PERIOD, DEFAULT_PERIOD)
     interval = data_cfg.get(KEY_INTERVAL, DEFAULT_INTERVAL)
     use_cache = bool(data_cfg.get(KEY_USE_CACHE, False))
@@ -83,11 +90,34 @@ def _extract_data_cfg(
     cache_ttl_hours_raw = data_cfg.get(KEY_CACHE_TTL_HOURS, DEFAULT_CACHE_TTL_HOURS)
     cache_ttl_hours = None if cache_ttl_hours_raw is None else float(cache_ttl_hours_raw)
     force_refresh = bool(data_cfg.get(KEY_FORCE_REFRESH, False))
-    return tickers, index_ticker, period, interval, use_cache, cache_dir, cache_ttl_hours, force_refresh
+    return (
+        tickers,
+        index_ticker,
+        regime_tickers,
+        period,
+        interval,
+        use_cache,
+        cache_dir,
+        cache_ttl_hours,
+        force_refresh,
+    )
 
 
-def _load_market_data(payload: dict[str, Any], config_path: Path | None = None) -> tuple[dict[str, pd.DataFrame], pd.Series]:
-    tickers, index_ticker, period, interval, use_cache, cache_dir, cache_ttl_hours, force_refresh = _extract_data_cfg(payload)
+def _load_market_data(
+    payload: dict[str, Any],
+    config_path: Path | None = None,
+) -> tuple[dict[str, pd.DataFrame], pd.Series | pd.DataFrame]:
+    (
+        tickers,
+        index_ticker,
+        regime_tickers,
+        period,
+        interval,
+        use_cache,
+        cache_dir,
+        cache_ttl_hours,
+        force_refresh,
+    ) = _extract_data_cfg(payload)
     cache_root = Path(cache_dir)
     if config_path is not None and not cache_root.is_absolute():
         cache_root = (config_path.parent / cache_root).resolve()
@@ -101,16 +131,21 @@ def _load_market_data(payload: dict[str, Any], config_path: Path | None = None) 
         cache_ttl_hours=cache_ttl_hours,
         force_refresh=force_refresh,
     )
-    index_df = fetch_ohlcv_map(
-        [index_ticker],
+    regime_symbols = [index_ticker]
+    regime_symbols.extend([symbol for symbol in regime_tickers if symbol != index_ticker])
+    regime_map = fetch_ohlcv_map(
+        regime_symbols,
         period=period,
         interval=interval,
         use_cache=use_cache,
         cache_dir=cache_root,
         cache_ttl_hours=cache_ttl_hours,
         force_refresh=force_refresh,
-    )[index_ticker]
-    return ohlcv_map, index_df[COL_CLOSE]
+    )
+    regime_close = pd.concat({symbol: regime_map[symbol][COL_CLOSE] for symbol in regime_symbols}, axis=1)
+    if regime_close.shape[1] == 1:
+        return ohlcv_map, regime_close.iloc[:, 0]
+    return ohlcv_map, regime_close
 
 
 def _resolve_policy_config(payload: dict[str, Any], config_path: Path) -> PolicyConfig:
@@ -365,7 +400,7 @@ def _handle_backtest_output(backtest, output_cfg: dict[str, Any], ohlcv_map: dic
                     linestyle="--",
                     alpha=0.9,
                 )
-        ax.set_title("Backtest Equity, Cash, Position Values, and Optional Full-Hold Benchmarks")
+        ax.set_title("Backtest Equity, Cash, and Position Values")
         ax.set_xlabel("Date")
         ax.set_ylabel("Portfolio Value")
         ax.grid(True, alpha=0.25)

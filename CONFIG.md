@@ -39,7 +39,8 @@ If `policy_path` is relative, it is resolved relative to the config file.
 ### `data`
 
 - `tickers` (`array[string]`, required): symbols the strategy can trade.
-- `index_ticker` (`string`, default `SPY`): benchmark used for market regime detection.
+- `index_ticker` (`string`, default `SPY`): primary market proxy used as the anchor for regime detection.
+- `regime_tickers` (`array[string]`, optional): additional market proxies used for regime breadth checks (for example `["QQQ", "IWM"]`). If omitted, regime is computed from `index_ticker` only.
 - `period` (`string`, default `5y`): historical range to download.
 - `interval` (`string`, default `1d`): bar interval.
 - `use_cache` (`boolean`, default `false`): cache downloaded market data locally.
@@ -54,6 +55,7 @@ Example:
 "data": {
   "tickers": ["MSFT", "NVDA"],
   "index_ticker": "SPY",
+  "regime_tickers": ["QQQ", "IWM"],
   "period": "5y",
   "interval": "1d",
   "use_cache": true,
@@ -114,6 +116,15 @@ Core controls:
 - `trailing_stop_pct` (`number`, default `0`): moving loss limit from the highest price reached while in position. Example: `0.15` exits after a 15% pullback from that local high.
 - `cooldown_days` (`integer`, default `0`): days to wait after a forced risk exit before opening a new position in that symbol.
 
+`regime`:
+
+- `use_breadth` (`boolean`, default `true`): when enabled and additional `data.regime_tickers` are provided, the regime model also checks how many of those proxies are in uptrends.
+- `breadth_min_frac` (`number`, default `0.5`): minimum fraction of regime proxies that must be above their long-term trend to pass the breadth check.
+- `min_confirmations` (`integer`, default `3`): minimum number of regime checks that must pass to classify a day as risk-on.
+- `require_anchor_trend` (`boolean`, default `true`): if enabled, the anchor index (`index_ticker`) must be above its long-term trend, even if other checks pass.
+- `drawdown_lookback` (`integer`, default `252`): lookback window (trading days) for the drawdown health check.
+- `drawdown_floor` (`number`, default `-0.20`): maximum allowed drawdown over the lookback window before regime turns defensive.
+
 `score_weights`:
 
 - `c_over_ema200` (`number`, default `0.35`): emphasizes symbols trading above long-term trend.
@@ -126,13 +137,16 @@ For `score_weights`, higher values increase that signal's influence in ranking. 
 
 ### Regime logic
 
-The benchmark (`index_ticker`) is `risk_on = 1` only when all are true:
+Regime is determined from a set of checks on the anchor index plus optional breadth checks on `data.regime_tickers`. Core checks include:
 
-- `Close > EMA200`
-- `EMA50.diff(10) > 0`
-- `realized_volatility_20 < 0.35`
+- anchor index above EMA200,
+- EMA50 above EMA200,
+- positive EMA50 slope,
+- volatility below threshold,
+- drawdown above `drawdown_floor`,
+- optional breadth condition when enabled.
 
-Otherwise, `risk_on = 0`.
+A day is classified as `risk_on = 1` when the number of passing checks is at least `policy.regime.min_confirmations`. If `policy.regime.require_anchor_trend = true`, anchor trend must also be positive.
 
 Regime impact:
 

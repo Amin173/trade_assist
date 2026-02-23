@@ -50,7 +50,6 @@ trade-assist recommend --config config.recommend.json
 Templates:
 
 - `config.recommend.example.json`
-- `config.msft_nvda.example.json`
 
 ## Documentation
 

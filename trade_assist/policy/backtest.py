@@ -73,7 +73,7 @@ def _apply_liquidity_caps(
 
 def run_policy(
     ohlcv_map: dict[str, pd.DataFrame],
-    index_close: pd.Series,
+    index_close: pd.Series | pd.DataFrame,
     config: PolicyConfig | None = None,
     initial_cash: float = DEFAULT_INITIAL_CASH,
     initial_positions: dict[str, float] | None = None,
@@ -88,7 +88,7 @@ def run_policy(
     feats = {ticker: build_asset_features(ohlcv_map[ticker]) for ticker in tickers}
     scores = score_assets(feats, cfg.score_weights)
 
-    regime = compute_regime(index_close).reindex(dates).fillna(0).astype(int)
+    regime = compute_regime(index_close, config=cfg.regime).reindex(dates).fillna(0).astype(int)
 
     close_df = pd.concat({ticker: ohlcv_map[ticker][COL_CLOSE] for ticker in tickers}, axis=1)
     open_df = pd.concat(

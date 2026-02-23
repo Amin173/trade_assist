@@ -15,6 +15,13 @@ Edit `data.tickers` with your symbols, for example:
 "tickers": ["MSFT", "NVDA", "AAPL"]
 ```
 
+Optional: add broader market proxies for richer regime detection:
+
+```json
+"index_ticker": "SPY",
+"regime_tickers": ["QQQ", "IWM"]
+```
+
 ## 2. Pick a policy file
 
 Set `policy_path` in config, for example:
@@ -90,13 +97,7 @@ trade-assist recommend --config config.recommend.json
 
 This compares your current portfolio with the model target and prints `BUY`, `SELL`, or `HOLD` per ticker.
 
-## 6. Optional: test with MSFT/NVDA sample
-
-```bash
-trade-assist recommend --config config.msft_nvda.example.json
-```
-
-## 7. Tune policy only after baseline works
+## 6. Tune policy only after baseline works
 
 Once commands run end-to-end, adjust `policy` values (rebalance frequency, max weight, risk caps) one change at a time.
 

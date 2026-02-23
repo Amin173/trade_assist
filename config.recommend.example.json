@@ -1,8 +1,9 @@
 {
   "$schema": "./trade_assist/schemas/recommend.schema.json",
   "data": {
-    "tickers": ["VRT", "ANET", "CDNS"],
+    "tickers": ["NVDA"],
     "index_ticker": "SPY",
+    "regime_tickers": ["QQQ", "IWM"],
     "period": "5y",
     "interval": "1d",
     "use_cache": true,
@@ -12,12 +13,7 @@
   },
   "policy_path": "policies/baseline.json",
   "portfolio": {
-    "cash": 10000,
-    "positions": {
-      "VRT": 0,
-      "ANET": 0,
-      "CDNS": 0
-    }
+    "cash": 10000
   },
   "recommendation": {
     "min_trade_shares": 1

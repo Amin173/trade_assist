@@ -11,9 +11,20 @@ from trade_assist.ta.constants import COL_CLOSE
 
 def test_extract_data_cfg_defaults():
     payload = {"data": {"tickers": ["AAA"]}}
-    tickers, index_ticker, period, interval, use_cache, cache_dir, cache_ttl_hours, force_refresh = cli._extract_data_cfg(payload)
+    (
+        tickers,
+        index_ticker,
+        regime_tickers,
+        period,
+        interval,
+        use_cache,
+        cache_dir,
+        cache_ttl_hours,
+        force_refresh,
+    ) = cli._extract_data_cfg(payload)
     assert tickers == ["AAA"]
     assert index_ticker == "SPY"
+    assert regime_tickers == []
     assert period == "5y"
     assert interval == "1d"
     assert use_cache is False
@@ -74,6 +85,33 @@ def test_load_market_data_resolves_relative_cache_dir(monkeypatch, tmp_path):
     assert len(calls) == 2
     assert calls[0]["cache_dir"] == expected_cache_dir
     assert calls[1]["cache_dir"] == expected_cache_dir
+
+
+def test_load_market_data_with_regime_tickers_returns_close_matrix(monkeypatch, tmp_path):
+    cfg_path = tmp_path / "cfg.json"
+    cfg_path.write_text("{}", encoding="utf-8")
+
+    def fake_fetch_ohlcv_map(*args, **kwargs):
+        tickers = kwargs.get("tickers", args[0] if args else [])
+        idx = pd.DatetimeIndex([pd.Timestamp("2024-01-02")])
+        out = {}
+        for i, ticker in enumerate(tickers):
+            out[ticker] = pd.DataFrame({COL_CLOSE: [100.0 + i]}, index=idx)
+        return out
+
+    monkeypatch.setattr(cli, "fetch_ohlcv_map", fake_fetch_ohlcv_map)
+
+    payload = {
+        "data": {
+            "tickers": ["AAA"],
+            "index_ticker": "SPY",
+            "regime_tickers": ["QQQ", "IWM"],
+        }
+    }
+
+    _, regime_close = cli._load_market_data(payload, cfg_path)
+    assert isinstance(regime_close, pd.DataFrame)
+    assert list(regime_close.columns) == ["SPY", "QQQ", "IWM"]
 
 
 def test_resolve_policy_config_relative_path(tmp_path):

@@ -90,7 +90,7 @@ def _apply_liquidity_to_target_shares(
 
 def _latest_target_weights(
     ohlcv_map: dict[str, pd.DataFrame],
-    index_close: pd.Series,
+    index_close: pd.Series | pd.DataFrame,
     config: PolicyConfig,
 ) -> tuple[pd.Series, int, dict[str, pd.DataFrame], pd.DataFrame]:
     tickers = list(ohlcv_map.keys())
@@ -101,7 +101,7 @@ def _latest_target_weights(
     ret_df = close_df.pct_change()
     day = close_df.index[-1]
 
-    regime = compute_regime(index_close).reindex(close_df.index).fillna(0).astype(int)
+    regime = compute_regime(index_close, config=config.regime).reindex(close_df.index).fillna(0).astype(int)
     risk_on = int(regime.loc[day])
     gross_cap = config.gross_cap_risk_on if risk_on else config.gross_cap_risk_off
     target_vol = (
@@ -145,7 +145,7 @@ def _latest_target_weights(
 
 def recommend_positions(
     ohlcv_map: dict[str, pd.DataFrame],
-    index_close: pd.Series,
+    index_close: pd.Series | pd.DataFrame,
     current_positions: dict[str, float],
     current_cash: float,
     config: PolicyConfig,

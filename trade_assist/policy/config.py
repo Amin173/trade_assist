@@ -14,6 +14,12 @@ from .constants import (
     DEFAULT_MIN_HOLD_DAYS,
     DEFAULT_REBALANCE_FREQ,
     DEFAULT_RISK_OFF_TARGET_VOL_MULTIPLIER,
+    DEFAULT_REGIME_BREADTH_MIN_FRAC,
+    DEFAULT_REGIME_DRAWDOWN_FLOOR,
+    DEFAULT_REGIME_DRAWDOWN_LOOKBACK,
+    DEFAULT_REGIME_MIN_CONFIRMATIONS,
+    DEFAULT_REGIME_REQUIRE_ANCHOR_TREND,
+    DEFAULT_REGIME_USE_BREADTH,
     DEFAULT_STOP_LOSS_PCT,
     DEFAULT_TARGET_VOL_RISK_ON,
     DEFAULT_TRAILING_STOP_PCT,
@@ -48,6 +54,16 @@ class RiskExitConfig:
 
 
 @dataclass
+class RegimeConfig:
+    use_breadth: bool = DEFAULT_REGIME_USE_BREADTH
+    breadth_min_frac: float = DEFAULT_REGIME_BREADTH_MIN_FRAC
+    min_confirmations: int = DEFAULT_REGIME_MIN_CONFIRMATIONS
+    require_anchor_trend: bool = DEFAULT_REGIME_REQUIRE_ANCHOR_TREND
+    drawdown_lookback: int = DEFAULT_REGIME_DRAWDOWN_LOOKBACK
+    drawdown_floor: float = DEFAULT_REGIME_DRAWDOWN_FLOOR
+
+
+@dataclass
 class PolicyConfig:
     rebalance_freq: str = DEFAULT_REBALANCE_FREQ
     target_vol_risk_on: float = DEFAULT_TARGET_VOL_RISK_ON
@@ -60,6 +76,7 @@ class PolicyConfig:
     score_weights: ScoreWeights = field(default_factory=ScoreWeights)
     liquidity: LiquidityConfig = field(default_factory=LiquidityConfig)
     risk_exit: RiskExitConfig = field(default_factory=RiskExitConfig)
+    regime: RegimeConfig = field(default_factory=RegimeConfig)
 
     @classmethod
     def from_dict(cls, payload: dict[str, Any]) -> "PolicyConfig":
@@ -67,9 +84,11 @@ class PolicyConfig:
         score_weights_payload = data.pop("score_weights", {}) or {}
         liquidity_payload = data.pop("liquidity", {}) or {}
         risk_exit_payload = data.pop("risk_exit", {}) or {}
+        regime_payload = data.pop("regime", {}) or {}
         return cls(
             score_weights=ScoreWeights(**score_weights_payload),
             liquidity=LiquidityConfig(**liquidity_payload),
             risk_exit=RiskExitConfig(**risk_exit_payload),
+            regime=RegimeConfig(**regime_payload),
             **data,
         )

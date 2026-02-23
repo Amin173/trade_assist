@@ -85,3 +85,27 @@ def test_recommend_positions_liquidity_cap_reason_and_target(monkeypatch):
     rec = recs[0]
     assert rec.target_shares == 10.0
     assert "Trade capped by liquidity" in rec.reason
+
+
+def test_latest_target_weights_uses_policy_regime_config(monkeypatch, ohlcv_factory):
+    df = ohlcv_factory(periods=320, start_price=100.0, step=0.2, volume=1_000_000.0)
+    captured = {}
+
+    def fake_compute_regime(index_close, config=None):
+        captured["config"] = config
+        if isinstance(index_close, pd.DataFrame):
+            idx = index_close.index
+        else:
+            idx = index_close.index
+        return pd.Series(1, index=idx)
+
+    monkeypatch.setattr(recmod, "compute_regime", fake_compute_regime)
+    policy = PolicyConfig.from_dict({"regime": {"min_confirmations": 4}})
+
+    recmod._latest_target_weights(
+        ohlcv_map={"AAA": df},
+        index_close=df[COL_CLOSE],
+        config=policy,
+    )
+
+    assert captured["config"] is policy.regime
