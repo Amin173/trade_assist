@@ -30,6 +30,7 @@
     "save_full_hold_benchmarks_csv": "outputs/backtest_full_hold_benchmarks.csv",
     "save_rebalance_log_csv": "outputs/backtest_rebalances.csv",
     "plot_equity_curve": true,
+    "plot_trade_markers": true,
     "plot_full_hold_benchmarks": true,
     "full_hold_benchmark_tickers": ["NVDA"],
     "equity_curve_plot_path": "outputs/backtest_equity.png"

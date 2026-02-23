@@ -171,6 +171,7 @@ Regime impact:
 - `save_full_hold_benchmarks_csv` (`string`, optional): save full-hold benchmark series as CSV.
 - `save_rebalance_log_csv` (`string`, optional): save rebalance log CSV.
 - `plot_equity_curve` (`boolean`, default `false`): generate a chart with equity, cash, and per-position value lines.
+- `plot_trade_markers` (`boolean`, default `false`): add buy/sell markers to the equity chart using rebalance log notional (green `^` for buy days, red `v` for sell days).
 - `plot_full_hold_benchmarks` (`boolean`, default `false`): overlay normalized full-hold benchmark lines (all starting equity in one ticker, held throughout).
 - `full_hold_benchmark_tickers` (`array[string]`, optional): optional subset of tickers for full-hold overlays; defaults to all tickers.
 - `equity_curve_plot_path` (`string`, optional): file path for saved chart.

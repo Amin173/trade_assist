@@ -18,3 +18,12 @@ def test_validate_policy_accepts_known_keys():
         "regime": {"use_breadth": True, "breadth_min_frac": 0.6, "min_confirmations": 4},
     }
     validate_policy(payload)
+
+
+def test_validate_backtest_config_accepts_plot_trade_markers():
+    payload = {
+        "data": {"tickers": ["AAA"]},
+        "portfolio": {"cash": 1000},
+        "output": {"plot_equity_curve": True, "plot_trade_markers": True},
+    }
+    validate_config(payload, command="backtest")

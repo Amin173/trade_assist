@@ -47,6 +47,10 @@ DEFAULT_DAYS_PER_YEAR = 365.25
 INVESTED_EPSILON = 1e-9
 PLOT_DPI = 140
 PERCENT_SCALE = 100.0
+TRADE_MARKER_SIZE = 90
+TRADE_MARKER_ALPHA = 0.95
+TRADE_MARKER_EDGE_WIDTH = 0.8
+TRADE_MARKER_OFFSET_RATIO = 0.01
 
 LABEL_RISK_ON = "RISK_ON"
 LABEL_RISK_OFF = "RISK_OFF"
@@ -298,6 +302,7 @@ def _handle_backtest_output(backtest, output_cfg: dict[str, Any], ohlcv_map: dic
     save_rebalance_csv = output_cfg.get("save_rebalance_log_csv")
     save_stats_json = output_cfg.get("save_performance_stats_json")
     plot_equity_curve = bool(output_cfg.get("plot_equity_curve", False))
+    plot_trade_markers = bool(output_cfg.get("plot_trade_markers", False))
     plot_full_hold_benchmarks = bool(output_cfg.get("plot_full_hold_benchmarks", False))
     full_hold_benchmark_tickers = output_cfg.get("full_hold_benchmark_tickers")
     equity_plot_path = output_cfg.get("equity_curve_plot_path")
@@ -400,6 +405,44 @@ def _handle_backtest_output(backtest, output_cfg: dict[str, Any], ohlcv_map: dic
                     linestyle="--",
                     alpha=0.9,
                 )
+        if plot_trade_markers and not backtest.rebalance_log.empty:
+            rebalance = backtest.rebalance_log.copy()
+            rebalance["date"] = pd.to_datetime(rebalance["date"], errors="coerce")
+            rebalance = rebalance.dropna(subset=["date"])
+            if not rebalance.empty:
+                equity_series = account["equity"]
+                y_span = float(equity_series.max() - equity_series.min())
+                y_offset = max(y_span * TRADE_MARKER_OFFSET_RATIO, ONE)
+                buy_days = pd.DatetimeIndex(rebalance.loc[rebalance["buy_notional"] > 0, "date"].unique())
+                sell_days = pd.DatetimeIndex(rebalance.loc[rebalance["sell_notional"] > 0, "date"].unique())
+                buy_points = equity_series.reindex(buy_days).dropna()
+                sell_points = equity_series.reindex(sell_days).dropna()
+                if not buy_points.empty:
+                    ax.scatter(
+                        buy_points.index,
+                        buy_points.values + y_offset,
+                        marker="^",
+                        color="tab:green",
+                        s=TRADE_MARKER_SIZE,
+                        alpha=TRADE_MARKER_ALPHA,
+                        edgecolors="black",
+                        linewidths=TRADE_MARKER_EDGE_WIDTH,
+                        zorder=6,
+                        label="Buy",
+                    )
+                if not sell_points.empty:
+                    ax.scatter(
+                        sell_points.index,
+                        sell_points.values - y_offset,
+                        marker="v",
+                        color="tab:red",
+                        s=TRADE_MARKER_SIZE,
+                        alpha=TRADE_MARKER_ALPHA,
+                        edgecolors="black",
+                        linewidths=TRADE_MARKER_EDGE_WIDTH,
+                        zorder=6,
+                        label="Sell",
+                    )
         ax.set_title("Backtest Equity, Cash, and Position Values")
         ax.set_xlabel("Date")
         ax.set_ylabel("Portfolio Value")

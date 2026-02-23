@@ -52,6 +52,7 @@
         "save_full_hold_benchmarks_csv": {"type": "string"},
         "save_rebalance_log_csv": {"type": "string"},
         "plot_equity_curve": {"type": "boolean"},
+        "plot_trade_markers": {"type": "boolean"},
         "plot_full_hold_benchmarks": {"type": "boolean"},
         "full_hold_benchmark_tickers": {
           "type": "array",
