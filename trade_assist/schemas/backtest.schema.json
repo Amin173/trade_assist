@@ -33,8 +33,16 @@
         "rebalance_log_tail": {"type": "integer", "minimum": 1},
         "save_performance_stats_json": {"type": "string"},
         "save_equity_curve_csv": {"type": "string"},
+        "save_account_history_csv": {"type": "string"},
+        "save_position_values_csv": {"type": "string"},
+        "save_full_hold_benchmarks_csv": {"type": "string"},
         "save_rebalance_log_csv": {"type": "string"},
         "plot_equity_curve": {"type": "boolean"},
+        "plot_full_hold_benchmarks": {"type": "boolean"},
+        "full_hold_benchmark_tickers": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1}
+        },
         "equity_curve_plot_path": {"type": "string"}
       }
     },

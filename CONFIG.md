@@ -127,8 +127,13 @@ Regime impact:
 - `print_rebalance_log` (`boolean`, default `false`): print rebalance table.
 - `rebalance_log_tail` (`integer`, default `20`): rows to print from rebalance log.
 - `save_equity_curve_csv` (`string`, optional): save equity curve CSV.
+- `save_account_history_csv` (`string`, optional): save daily account history (`equity`, `cash`, and per-position values) as CSV.
+- `save_position_values_csv` (`string`, optional): save per-position value series as CSV.
+- `save_full_hold_benchmarks_csv` (`string`, optional): save full-hold benchmark series as CSV.
 - `save_rebalance_log_csv` (`string`, optional): save rebalance log CSV.
-- `plot_equity_curve` (`boolean`, default `false`): generate equity curve chart.
+- `plot_equity_curve` (`boolean`, default `false`): generate a chart with equity, cash, and per-position value lines.
+- `plot_full_hold_benchmarks` (`boolean`, default `false`): overlay normalized full-hold benchmark lines (all starting equity in one ticker, held throughout).
+- `full_hold_benchmark_tickers` (`array[string]`, optional): optional subset of tickers for full-hold overlays; defaults to all tickers.
 - `equity_curve_plot_path` (`string`, optional): file path for saved chart.
 
 Performance metrics include:
@@ -146,6 +151,7 @@ Performance metrics include:
 Cash rule:
 
 - Backtest uses a no-leverage baseline. If buys exceed cash, buy orders are scaled down.
+- Full-hold benchmark lines start from the strategy's first invested date (not necessarily the first date in the dataset).
 
 ## `trade-assist recommend`
 

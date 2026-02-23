@@ -1,14 +1,14 @@
 {
   "$schema": "./trade_assist/schemas/backtest.schema.json",
   "data": {
-    "tickers": ["MSFT", "NVDA"],
+    "tickers": ["NVDA"],
     "index_ticker": "SPY",
-    "period": "3y",
+    "period": "5y",
     "interval": "1d"
   },
   "policy_path": "policies/baseline.json",
   "portfolio": {
-    "cash": 100000,
+    "cash": 10000,
     "positions": {
       "MSFT": 0,
       "NVDA": 0
@@ -21,8 +21,13 @@
     "print_rebalance_log": false,
     "rebalance_log_tail": 20,
     "save_equity_curve_csv": "outputs/backtest_equity.csv",
+    "save_account_history_csv": "outputs/backtest_account_history.csv",
+    "save_position_values_csv": "outputs/backtest_position_values.csv",
+    "save_full_hold_benchmarks_csv": "outputs/backtest_full_hold_benchmarks.csv",
     "save_rebalance_log_csv": "outputs/backtest_rebalances.csv",
     "plot_equity_curve": true,
+    "plot_full_hold_benchmarks": true,
+    "full_hold_benchmark_tickers": ["NVDA"],
     "equity_curve_plot_path": "outputs/backtest_equity.png"
   }
 }

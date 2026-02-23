@@ -21,6 +21,7 @@ Set `policy_path` in config, for example:
 
 - `"policy_path": "policies/baseline.json"`
 - `"policy_path": "policies/defensive.json"`
+- `"policy_path": "policies/aggressive.json"`
 
 ## 3. Set your portfolio state
 
@@ -59,8 +60,13 @@ It also prints risk/return metrics (CAGR, volatility, Sharpe, max drawdown, and 
 Optional diagnostics:
 
 - In `config.backtest.json`, set `output.verbose` to `true` for extra run stats.
-- Set `output.save_equity_curve_csv` / `output.save_rebalance_log_csv` to export files.
-- Set `output.plot_equity_curve` to `true` and `output.equity_curve_plot_path` to save a plot image.
+- Set `output.save_equity_curve_csv` to export the equity curve.
+- Set `output.save_account_history_csv` to export daily `equity`, `cash`, and per-position values.
+- Set `output.save_position_values_csv` to export only per-position value series.
+- Set `output.plot_full_hold_benchmarks` to `true` to overlay full-hold normalized ticker trends on the same chart.
+- Optionally set `output.full_hold_benchmark_tickers` to choose which tickers to include.
+- Set `output.save_rebalance_log_csv` to export rebalance rows.
+- Set `output.plot_equity_curve` to `true` and `output.equity_curve_plot_path` to save a combined chart (equity + cash + positions).
 
 ## 5. Run recommendations
 

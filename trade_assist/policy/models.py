@@ -12,3 +12,4 @@ class BacktestResult:
     final_cash: float
     regime: pd.Series
     rebalance_log: pd.DataFrame
+    account_history: pd.DataFrame

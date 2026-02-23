@@ -57,7 +57,7 @@ def run_policy(
             if ticker in holdings.index:
                 holdings.loc[ticker] = float(shares)
     last_trade_day = pd.Series(pd.Timestamp("1900-01-01"), index=tickers)
-    eq_curve: list[tuple[pd.Timestamp, float]] = []
+    account_rows: list[dict[str, float | pd.Timestamp]] = []
     rebalance_rows: list[dict[str, float | int | str]] = []
 
     rebalance_days = pd.Series(1, index=dates).resample(cfg.rebalance_freq).last().index
@@ -65,8 +65,12 @@ def run_policy(
 
     for day in dates[:-1]:
         prices = close_df.loc[day].reindex(tickers)
-        equity = cash + float((holdings * prices).sum())
-        eq_curve.append((day, equity))
+        position_values = (holdings * prices).fillna(0.0)
+        equity = cash + float(position_values.sum())
+        row: dict[str, float | pd.Timestamp] = {"date": day, "equity": float(equity), "cash": float(cash)}
+        for ticker in tickers:
+            row[f"{ticker}_value"] = float(position_values.loc[ticker])
+        account_rows.append(row)
 
         if day not in rebalance_set:
             continue
@@ -194,10 +198,16 @@ def run_policy(
         )
 
     final_day = dates[-1]
-    final_equity = cash + float((holdings * close_df.loc[final_day].reindex(tickers)).sum())
-    eq_curve.append((final_day, final_equity))
+    final_prices = close_df.loc[final_day].reindex(tickers)
+    final_position_values = (holdings * final_prices).fillna(0.0)
+    final_equity = cash + float(final_position_values.sum())
+    final_row: dict[str, float | pd.Timestamp] = {"date": final_day, "equity": float(final_equity), "cash": float(cash)}
+    for ticker in tickers:
+        final_row[f"{ticker}_value"] = float(final_position_values.loc[ticker])
+    account_rows.append(final_row)
 
-    equity_curve = pd.Series([e for _, e in eq_curve], index=[d for d, _ in eq_curve], name="equity")
+    account_history = pd.DataFrame(account_rows).set_index("date").sort_index()
+    equity_curve = account_history["equity"].rename("equity")
     rebalance_log = pd.DataFrame(rebalance_rows)
     return BacktestResult(
         equity_curve=equity_curve,
@@ -205,4 +215,5 @@ def run_policy(
         final_cash=float(cash),
         regime=regime,
         rebalance_log=rebalance_log,
+        account_history=account_history,
     )

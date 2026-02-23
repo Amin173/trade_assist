@@ -160,16 +160,72 @@ def _print_performance_stats(stats: dict[str, float]) -> None:
     print(f"- worst_day: {stats['worst_day_pct']:.2f}%")
 
 
-def _handle_backtest_output(backtest, output_cfg: dict[str, Any]) -> None:
+def _compute_full_hold_benchmarks(
+    ohlcv_map: dict[str, pd.DataFrame],
+    index: pd.Index,
+    start_equity: float,
+    start_date: pd.Timestamp,
+    tickers: list[str] | None = None,
+) -> pd.DataFrame:
+    selected = tickers if tickers else list(ohlcv_map.keys())
+    out = pd.DataFrame(index=index)
+
+    for ticker in selected:
+        if ticker not in ohlcv_map:
+            continue
+        close = ohlcv_map[ticker]["Close"].reindex(index).ffill()
+        if close.empty or start_date not in close.index:
+            continue
+        base = close.loc[start_date]
+        if pd.isna(base) or base <= 0:
+            continue
+        series = pd.Series(np.nan, index=index, dtype=float)
+        active_mask = series.index >= start_date
+        series.loc[active_mask] = start_equity * (close.loc[active_mask] / base)
+        out[f"{ticker}_full_hold"] = series
+    return out
+
+
+def _handle_backtest_output(backtest, output_cfg: dict[str, Any], ohlcv_map: dict[str, pd.DataFrame]) -> None:
     verbose = bool(output_cfg.get("verbose", False))
     print_performance_stats = bool(output_cfg.get("print_performance_stats", True))
     print_rebalance_log = bool(output_cfg.get("print_rebalance_log", False))
     rebalance_tail = int(output_cfg.get("rebalance_log_tail", 20))
     save_equity_csv = output_cfg.get("save_equity_curve_csv")
+    save_account_history_csv = output_cfg.get("save_account_history_csv")
+    save_position_values_csv = output_cfg.get("save_position_values_csv")
+    save_full_hold_benchmarks_csv = output_cfg.get("save_full_hold_benchmarks_csv")
     save_rebalance_csv = output_cfg.get("save_rebalance_log_csv")
     save_stats_json = output_cfg.get("save_performance_stats_json")
     plot_equity_curve = bool(output_cfg.get("plot_equity_curve", False))
+    plot_full_hold_benchmarks = bool(output_cfg.get("plot_full_hold_benchmarks", False))
+    full_hold_benchmark_tickers = output_cfg.get("full_hold_benchmark_tickers")
     equity_plot_path = output_cfg.get("equity_curve_plot_path")
+    position_value_cols = [col for col in backtest.account_history.columns if str(col).endswith("_value")]
+    benchmark_tickers = (
+        [str(x) for x in full_hold_benchmark_tickers]
+        if isinstance(full_hold_benchmark_tickers, list)
+        else None
+    )
+    full_hold_benchmarks = pd.DataFrame(index=backtest.account_history.index)
+    if plot_full_hold_benchmarks or save_full_hold_benchmarks_csv:
+        account = backtest.account_history
+        benchmark_start_date = account.index[0]
+        if position_value_cols:
+            invested = account[position_value_cols].sum(axis=1)
+            invested_mask = invested.abs() > 1e-9
+            if invested_mask.any():
+                benchmark_start_date = invested_mask[invested_mask].index[0]
+        start_equity = float(account.loc[benchmark_start_date, "equity"]) if len(account) else 0.0
+        full_hold_benchmarks = _compute_full_hold_benchmarks(
+            ohlcv_map=ohlcv_map,
+            index=account.index,
+            start_equity=start_equity,
+            start_date=benchmark_start_date,
+            tickers=benchmark_tickers,
+        )
+        if verbose:
+            print(f"Full-hold benchmark start date: {benchmark_start_date.date()}")
 
     stats = _compute_performance_stats(backtest.equity_curve)
     if print_performance_stats:
@@ -200,6 +256,24 @@ def _handle_backtest_output(backtest, output_cfg: dict[str, Any]) -> None:
         backtest.equity_curve.rename("equity").to_csv(path, header=True)
         print(f"Saved equity curve CSV: {path}")
 
+    if save_account_history_csv:
+        path = Path(str(save_account_history_csv))
+        path.parent.mkdir(parents=True, exist_ok=True)
+        backtest.account_history.to_csv(path, index=True)
+        print(f"Saved account history CSV: {path}")
+
+    if save_position_values_csv and position_value_cols:
+        path = Path(str(save_position_values_csv))
+        path.parent.mkdir(parents=True, exist_ok=True)
+        backtest.account_history[position_value_cols].to_csv(path, index=True)
+        print(f"Saved position values CSV: {path}")
+
+    if save_full_hold_benchmarks_csv and not full_hold_benchmarks.empty:
+        path = Path(str(save_full_hold_benchmarks_csv))
+        path.parent.mkdir(parents=True, exist_ok=True)
+        full_hold_benchmarks.to_csv(path, index=True)
+        print(f"Saved full-hold benchmark CSV: {path}")
+
     if save_rebalance_csv and not backtest.rebalance_log.empty:
         path = Path(str(save_rebalance_csv))
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -210,12 +284,27 @@ def _handle_backtest_output(backtest, output_cfg: dict[str, Any]) -> None:
         import matplotlib.pyplot as plt
 
         fig, ax = plt.subplots(figsize=(10, 5))
-        ax.plot(backtest.equity_curve.index, backtest.equity_curve.values, label="Equity")
-        ax.set_title("Backtest Equity Curve")
+        account = backtest.account_history
+        ax.plot(account.index, account["equity"], label="Equity", linewidth=2.0)
+        if "cash" in account.columns:
+            ax.plot(account.index, account["cash"], label="Cash", linewidth=1.8)
+        for col in position_value_cols:
+            ax.plot(account.index, account[col], label=col.replace("_value", ""), alpha=0.9)
+        if plot_full_hold_benchmarks and not full_hold_benchmarks.empty:
+            for col in full_hold_benchmarks.columns:
+                label = col.replace("_full_hold", "") + " (full hold)"
+                ax.plot(
+                    full_hold_benchmarks.index,
+                    full_hold_benchmarks[col],
+                    label=label,
+                    linestyle="--",
+                    alpha=0.9,
+                )
+        ax.set_title("Backtest Equity, Cash, Position Values, and Optional Full-Hold Benchmarks")
         ax.set_xlabel("Date")
         ax.set_ylabel("Portfolio Value")
         ax.grid(True, alpha=0.25)
-        ax.legend(loc="best")
+        ax.legend(loc="best", ncol=2)
         fig.tight_layout()
 
         if equity_plot_path:
@@ -253,7 +342,7 @@ def backtest_from_config(config_path: str) -> int:
     print(f"Backtest final cash: {backtest.final_cash:.2f}")
     print("Final holdings (shares):")
     print(backtest.final_holdings.round(4).to_string())
-    _handle_backtest_output(backtest, output_cfg)
+    _handle_backtest_output(backtest, output_cfg, ohlcv_map)
     return 0
 
 
