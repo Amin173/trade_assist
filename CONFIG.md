@@ -6,6 +6,11 @@ Schemas:
 - Recommend config: `trade_assist/schemas/recommend.schema.json`
 - Policy file: `trade_assist/schemas/policy.schema.json`
 
+Runtime behavior:
+
+- `$schema` is optional and mainly helps editors with autocomplete and validation hints.
+- The CLI always validates against the bundled schema for the command you run (`backtest` or `recommend`), even if `$schema` is missing.
+
 ## `trade-assist backtest`
 
 Command:
@@ -23,7 +28,7 @@ Runs a historical simulation with your selected settings.
 
 ### Optional top-level fields
 
-- `$schema`: schema hint for editors and tooling.
+- `$schema`: schema hint for editors and tooling. Runtime validation still uses the bundled backtest schema.
 - `policy`: inline policy object.
 - `policy_path`: path to an external policy JSON file.
 - `output`: optional diagnostics and exports.
@@ -205,7 +210,7 @@ Compares current holdings to model target holdings and returns `BUY`, `SELL`, or
 
 ### Optional top-level fields
 
-- `$schema`
+- `$schema`: optional editor hint; runtime validation still uses the bundled recommend schema.
 - `policy`
 - `policy_path`
 - `recommendation`
