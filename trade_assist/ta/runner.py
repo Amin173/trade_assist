@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from .constants import LOOKBACK_SESSIONS
 from .features import build_features
 from .models import TickerTA
 from .plotting import plot_ticker
@@ -23,6 +24,6 @@ def run_ta(tickers: list[str], plot: bool = True) -> dict[str, TickerTA]:
         print(f"- resistance_levels (pivot clusters): {[round(x, 2) for x in ta.levels_resistance]}")
 
         if plot:
-            plot_ticker(ta, last_n=252)
+            plot_ticker(ta, last_n=LOOKBACK_SESSIONS)
 
     return results

@@ -5,6 +5,8 @@ from typing import Tuple
 import numpy as np
 import pandas as pd
 
+from .constants import ATR_WINDOW, EPSILON, RSI_WINDOW, TRADING_DAYS_PER_YEAR, VOL_WINDOW
+
 
 def sma(series: pd.Series, window: int) -> pd.Series:
     return series.rolling(window=window, min_periods=window).mean()
@@ -14,7 +16,7 @@ def ema(series: pd.Series, span: int) -> pd.Series:
     return series.ewm(span=span, adjust=False).mean()
 
 
-def rsi(close: pd.Series, window: int = 14) -> pd.Series:
+def rsi(close: pd.Series, window: int = RSI_WINDOW) -> pd.Series:
     delta = close.diff()
     gain = delta.clip(lower=0.0)
     loss = -delta.clip(upper=0.0)
@@ -51,28 +53,32 @@ def true_range(high: pd.Series, low: pd.Series, close: pd.Series) -> pd.Series:
     return tr
 
 
-def atr(high: pd.Series, low: pd.Series, close: pd.Series, window: int = 14) -> pd.Series:
+def atr(high: pd.Series, low: pd.Series, close: pd.Series, window: int = ATR_WINDOW) -> pd.Series:
     tr = true_range(high, low, close)
     return tr.ewm(alpha=1 / window, adjust=False).mean()
 
 
 def annualized_volatility(
     close: pd.Series,
-    window: int = 20,
-    trading_days: int = 252,
+    window: int = VOL_WINDOW,
+    trading_days: int = TRADING_DAYS_PER_YEAR,
 ) -> pd.Series:
     returns = close.pct_change()
     return returns.rolling(window).std() * np.sqrt(trading_days)
 
 
-def realized_volatility(close: pd.Series, window: int = 20, trading_days: int = 252) -> pd.Series:
+def realized_volatility(
+    close: pd.Series,
+    window: int = VOL_WINDOW,
+    trading_days: int = TRADING_DAYS_PER_YEAR,
+) -> pd.Series:
     returns = close.pct_change()
     return returns.rolling(window).std() * np.sqrt(trading_days)
 
 
 def max_drawdown(close: pd.Series) -> Tuple[float, pd.Timestamp, pd.Timestamp]:
     cummax = close.cummax()
-    drawdown = close / cummax - 1.0
+    drawdown = close / (cummax + EPSILON) - 1.0
     trough = drawdown.idxmin()
     peak = close.loc[:trough].idxmax()
     return float(drawdown.loc[trough]), peak, trough

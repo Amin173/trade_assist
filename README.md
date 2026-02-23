@@ -17,6 +17,12 @@ pip install -e .
 
 This installs the package and all runtime dependencies from `setup.py`.
 
+For development (includes `pytest`):
+
+```bash
+pip install -e ".[dev]"
+```
+
 ## Subcommands
 
 ### `trade-assist backtest`
@@ -51,11 +57,11 @@ Templates:
 - Quickstart (how to configure and test your own symbols/positions): `QUICKSTART.md`
 - Full config parameter reference: `CONFIG.md`
 
-Policy files:
+## Tests
 
-- Store policy JSON files under `policies/` (for example `policies/baseline.json`, `policies/defensive.json`, `policies/aggressive.json`).
-- Select one in config with `policy_path`.
-- Data config supports optional local caching (`use_cache`, `cache_dir`, `cache_ttl_hours`, `force_refresh`).
+```bash
+pytest -q
+```
 
 ## Notes
 

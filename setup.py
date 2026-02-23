@@ -9,6 +9,9 @@ setup(
     package_data={"trade_assist": ["schemas/*.json"]},
     include_package_data=True,
     install_requires=["yfinance", "pandas", "numpy", "matplotlib", "jsonschema"],
+    extras_require={
+        "dev": ["pytest>=8.0"],
+    },
     python_requires=">=3.10",
     entry_points={
         "console_scripts": [

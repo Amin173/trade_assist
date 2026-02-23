@@ -9,9 +9,47 @@ import numpy as np
 import pandas as pd
 
 from .config_validation import validate_config, validate_policy
+from .policy.constants import ANNUAL_TRADING_DAYS, ONE, RISK_ON_FLAG, ZERO
 from .policy import PolicyConfig, run_policy
 from .policy.recommendations import recommend_positions
+from .ta.constants import (
+    COL_CLOSE,
+    DEFAULT_CACHE_DIR,
+    DEFAULT_CACHE_TTL_HOURS,
+    DEFAULT_INDEX_TICKER,
+    DEFAULT_INTERVAL,
+    DEFAULT_PERIOD,
+)
 from .ta.data import fetch_ohlcv_map
+
+KEY_DATA = "data"
+KEY_TICKERS = "tickers"
+KEY_PORTFOLIO = "portfolio"
+KEY_CASH = "cash"
+KEY_POSITIONS = "positions"
+KEY_POLICY = "policy"
+KEY_POLICY_PATH = "policy_path"
+KEY_OUTPUT = "output"
+KEY_RECOMMENDATION = "recommendation"
+
+KEY_INDEX_TICKER = "index_ticker"
+KEY_PERIOD = "period"
+KEY_INTERVAL = "interval"
+KEY_USE_CACHE = "use_cache"
+KEY_CACHE_DIR = "cache_dir"
+KEY_CACHE_TTL_HOURS = "cache_ttl_hours"
+KEY_FORCE_REFRESH = "force_refresh"
+
+DEFAULT_MIN_TRADE_SHARES = ONE
+DEFAULT_REBALANCE_LOG_TAIL = 20
+DEFAULT_DAYS_PER_YEAR = 365.25
+INVESTED_EPSILON = 1e-9
+PLOT_DPI = 140
+PERCENT_SCALE = 100.0
+
+LABEL_RISK_ON = "RISK_ON"
+LABEL_RISK_OFF = "RISK_OFF"
+NO_TARGET_EXPOSURE_TEXT = "No target exposure (all cash)"
 
 
 def _load_config(path: str) -> tuple[dict[str, Any], Path]:
@@ -29,22 +67,22 @@ def _require_keys(payload: dict[str, Any], required: list[str], scope: str = "co
 def _extract_data_cfg(
     payload: dict[str, Any],
 ) -> tuple[list[str], str, str, str, bool, str, float | None, bool]:
-    _require_keys(payload, ["data"], scope="config")
-    data_cfg = payload["data"]
-    _require_keys(data_cfg, ["tickers"], scope="data")
+    _require_keys(payload, [KEY_DATA], scope="config")
+    data_cfg = payload[KEY_DATA]
+    _require_keys(data_cfg, [KEY_TICKERS], scope="data")
 
-    tickers = data_cfg["tickers"]
+    tickers = data_cfg[KEY_TICKERS]
     if not isinstance(tickers, list) or not tickers:
         raise ValueError("data.tickers must be a non-empty list of symbols")
 
-    index_ticker = data_cfg.get("index_ticker", "SPY")
-    period = data_cfg.get("period", "5y")
-    interval = data_cfg.get("interval", "1d")
-    use_cache = bool(data_cfg.get("use_cache", False))
-    cache_dir = str(data_cfg.get("cache_dir", ".cache/market_data"))
-    cache_ttl_hours_raw = data_cfg.get("cache_ttl_hours", 24)
+    index_ticker = data_cfg.get(KEY_INDEX_TICKER, DEFAULT_INDEX_TICKER)
+    period = data_cfg.get(KEY_PERIOD, DEFAULT_PERIOD)
+    interval = data_cfg.get(KEY_INTERVAL, DEFAULT_INTERVAL)
+    use_cache = bool(data_cfg.get(KEY_USE_CACHE, False))
+    cache_dir = str(data_cfg.get(KEY_CACHE_DIR, DEFAULT_CACHE_DIR))
+    cache_ttl_hours_raw = data_cfg.get(KEY_CACHE_TTL_HOURS, DEFAULT_CACHE_TTL_HOURS)
     cache_ttl_hours = None if cache_ttl_hours_raw is None else float(cache_ttl_hours_raw)
-    force_refresh = bool(data_cfg.get("force_refresh", False))
+    force_refresh = bool(data_cfg.get(KEY_FORCE_REFRESH, False))
     return tickers, index_ticker, period, interval, use_cache, cache_dir, cache_ttl_hours, force_refresh
 
 
@@ -72,11 +110,11 @@ def _load_market_data(payload: dict[str, Any], config_path: Path | None = None) 
         cache_ttl_hours=cache_ttl_hours,
         force_refresh=force_refresh,
     )[index_ticker]
-    return ohlcv_map, index_df["Close"]
+    return ohlcv_map, index_df[COL_CLOSE]
 
 
 def _resolve_policy_config(payload: dict[str, Any], config_path: Path) -> PolicyConfig:
-    policy_path = payload.get("policy_path")
+    policy_path = payload.get(KEY_POLICY_PATH)
     if policy_path is not None:
         path = Path(str(policy_path))
         if not path.is_absolute():
@@ -91,8 +129,8 @@ def _resolve_policy_config(payload: dict[str, Any], config_path: Path) -> Policy
         validate_policy(policy_payload)
         return PolicyConfig.from_dict(policy_payload)
 
-    if "policy" in payload:
-        policy_payload = payload.get("policy", {})
+    if KEY_POLICY in payload:
+        policy_payload = payload.get(KEY_POLICY, {})
         if not isinstance(policy_payload, dict):
             raise ValueError("config.policy must be a JSON object")
         validate_policy(policy_payload)
@@ -121,55 +159,55 @@ def _compute_performance_stats(equity_curve: pd.Series) -> dict[str, float]:
     eq = equity_curve.dropna()
     if len(eq) < 2:
         return {
-            "total_return_pct": 0.0,
-            "cagr_pct": 0.0,
-            "annualized_vol_pct": 0.0,
-            "sharpe": 0.0,
-            "sortino": 0.0,
-            "max_drawdown_pct": 0.0,
-            "calmar": 0.0,
-            "win_rate_pct": 0.0,
-            "best_day_pct": 0.0,
-            "worst_day_pct": 0.0,
+            "total_return_pct": ZERO,
+            "cagr_pct": ZERO,
+            "annualized_vol_pct": ZERO,
+            "sharpe": ZERO,
+            "sortino": ZERO,
+            "max_drawdown_pct": ZERO,
+            "calmar": ZERO,
+            "win_rate_pct": ZERO,
+            "best_day_pct": ZERO,
+            "worst_day_pct": ZERO,
         }
 
     returns = eq.pct_change().dropna()
     if len(returns) == 0:
-        returns = pd.Series([0.0], index=eq.index[:1])
+        returns = pd.Series([ZERO], index=eq.index[:1])
 
-    total_return = float(eq.iloc[-1] / eq.iloc[0] - 1.0)
+    total_return = float(eq.iloc[-1] / eq.iloc[0] - ONE)
     duration_days = max((eq.index[-1] - eq.index[0]).days, 1)
-    years = duration_days / 365.25
-    cagr = float((eq.iloc[-1] / eq.iloc[0]) ** (1.0 / years) - 1.0) if eq.iloc[0] > 0 else 0.0
+    years = duration_days / DEFAULT_DAYS_PER_YEAR
+    cagr = float((eq.iloc[-1] / eq.iloc[0]) ** (ONE / years) - ONE) if eq.iloc[0] > ZERO else ZERO
 
-    annualized_vol = float(returns.std() * np.sqrt(252))
-    annualized_mean = float(returns.mean() * 252)
-    sharpe = float(annualized_mean / annualized_vol) if annualized_vol > 0 else 0.0
+    annualized_vol = float(returns.std() * np.sqrt(ANNUAL_TRADING_DAYS))
+    annualized_mean = float(returns.mean() * ANNUAL_TRADING_DAYS)
+    sharpe = float(annualized_mean / annualized_vol) if annualized_vol > ZERO else ZERO
 
     downside = returns[returns < 0]
-    downside_vol = float(downside.std() * np.sqrt(252)) if len(downside) > 1 else 0.0
-    sortino = float(annualized_mean / downside_vol) if downside_vol > 0 else 0.0
+    downside_vol = float(downside.std() * np.sqrt(ANNUAL_TRADING_DAYS)) if len(downside) > 1 else ZERO
+    sortino = float(annualized_mean / downside_vol) if downside_vol > ZERO else ZERO
 
     running_max = eq.cummax()
-    drawdown = eq / running_max - 1.0
+    drawdown = eq / running_max - ONE
     max_drawdown = float(drawdown.min())
-    calmar = float(cagr / abs(max_drawdown)) if max_drawdown < 0 else 0.0
+    calmar = float(cagr / abs(max_drawdown)) if max_drawdown < ZERO else ZERO
 
     win_rate = float((returns > 0).mean())
     best_day = float(returns.max())
     worst_day = float(returns.min())
 
     return {
-        "total_return_pct": total_return * 100.0,
-        "cagr_pct": cagr * 100.0,
-        "annualized_vol_pct": annualized_vol * 100.0,
+        "total_return_pct": total_return * PERCENT_SCALE,
+        "cagr_pct": cagr * PERCENT_SCALE,
+        "annualized_vol_pct": annualized_vol * PERCENT_SCALE,
         "sharpe": sharpe,
         "sortino": sortino,
-        "max_drawdown_pct": max_drawdown * 100.0,
+        "max_drawdown_pct": max_drawdown * PERCENT_SCALE,
         "calmar": calmar,
-        "win_rate_pct": win_rate * 100.0,
-        "best_day_pct": best_day * 100.0,
-        "worst_day_pct": worst_day * 100.0,
+        "win_rate_pct": win_rate * PERCENT_SCALE,
+        "best_day_pct": best_day * PERCENT_SCALE,
+        "worst_day_pct": worst_day * PERCENT_SCALE,
     }
 
 
@@ -200,7 +238,7 @@ def _compute_full_hold_benchmarks(
     for ticker in selected:
         if ticker not in ohlcv_map:
             continue
-        close = ohlcv_map[ticker]["Close"].reindex(index).ffill()
+        close = ohlcv_map[ticker][COL_CLOSE].reindex(index).ffill()
         if close.empty or start_date not in close.index:
             continue
         base = close.loc[start_date]
@@ -217,7 +255,7 @@ def _handle_backtest_output(backtest, output_cfg: dict[str, Any], ohlcv_map: dic
     verbose = bool(output_cfg.get("verbose", False))
     print_performance_stats = bool(output_cfg.get("print_performance_stats", True))
     print_rebalance_log = bool(output_cfg.get("print_rebalance_log", False))
-    rebalance_tail = int(output_cfg.get("rebalance_log_tail", 20))
+    rebalance_tail = int(output_cfg.get("rebalance_log_tail", DEFAULT_REBALANCE_LOG_TAIL))
     save_equity_csv = output_cfg.get("save_equity_curve_csv")
     save_account_history_csv = output_cfg.get("save_account_history_csv")
     save_position_values_csv = output_cfg.get("save_position_values_csv")
@@ -240,10 +278,10 @@ def _handle_backtest_output(backtest, output_cfg: dict[str, Any], ohlcv_map: dic
         benchmark_start_date = account.index[0]
         if position_value_cols:
             invested = account[position_value_cols].sum(axis=1)
-            invested_mask = invested.abs() > 1e-9
+            invested_mask = invested.abs() > INVESTED_EPSILON
             if invested_mask.any():
                 benchmark_start_date = invested_mask[invested_mask].index[0]
-        start_equity = float(account.loc[benchmark_start_date, "equity"]) if len(account) else 0.0
+        start_equity = float(account.loc[benchmark_start_date, "equity"]) if len(account) else ZERO
         full_hold_benchmarks = _compute_full_hold_benchmarks(
             ohlcv_map=ohlcv_map,
             index=account.index,
@@ -267,8 +305,8 @@ def _handle_backtest_output(backtest, output_cfg: dict[str, Any], ohlcv_map: dic
     if verbose:
         print(f"Backtest points: {len(backtest.equity_curve)}")
         if len(backtest.equity_curve) > 1:
-            ret = backtest.equity_curve.iloc[-1] / backtest.equity_curve.iloc[0] - 1.0
-            print(f"Total return: {ret * 100:.2f}%")
+            ret = backtest.equity_curve.iloc[-1] / backtest.equity_curve.iloc[0] - ONE
+            print(f"Total return: {ret * PERCENT_SCALE:.2f}%")
         if not backtest.rebalance_log.empty:
             avg_scale = float(backtest.rebalance_log["buy_scale"].mean())
             print(f"Average buy_scale: {avg_scale:.4f}")
@@ -337,7 +375,7 @@ def _handle_backtest_output(backtest, output_cfg: dict[str, Any], ohlcv_map: dic
         if equity_plot_path:
             path = Path(str(equity_plot_path))
             path.parent.mkdir(parents=True, exist_ok=True)
-            fig.savefig(path, dpi=140)
+            fig.savefig(path, dpi=PLOT_DPI)
             print(f"Saved equity curve plot: {path}")
             plt.close(fig)
         else:
@@ -347,14 +385,14 @@ def _handle_backtest_output(backtest, output_cfg: dict[str, Any], ohlcv_map: dic
 def backtest_from_config(config_path: str) -> int:
     payload, cfg_path = _load_config(config_path)
     validate_config(payload, command="backtest")
-    _require_keys(payload, ["portfolio"], scope="config")
+    _require_keys(payload, [KEY_PORTFOLIO], scope="config")
 
     policy_cfg = _resolve_policy_config(payload, cfg_path)
-    portfolio_cfg = payload["portfolio"]
-    _require_keys(portfolio_cfg, ["cash"], scope="portfolio")
-    initial_cash = float(portfolio_cfg["cash"])
-    initial_positions = portfolio_cfg.get("positions", {})
-    output_cfg = payload.get("output", {})
+    portfolio_cfg = payload[KEY_PORTFOLIO]
+    _require_keys(portfolio_cfg, [KEY_CASH], scope="portfolio")
+    initial_cash = float(portfolio_cfg[KEY_CASH])
+    initial_positions = portfolio_cfg.get(KEY_POSITIONS, {})
+    output_cfg = payload.get(KEY_OUTPUT, {})
 
     ohlcv_map, index_close = _load_market_data(payload, cfg_path)
     backtest = run_policy(
@@ -376,16 +414,16 @@ def backtest_from_config(config_path: str) -> int:
 def recommend_from_config(config_path: str) -> int:
     payload, cfg_path = _load_config(config_path)
     validate_config(payload, command="recommend")
-    _require_keys(payload, ["portfolio"], scope="config")
+    _require_keys(payload, [KEY_PORTFOLIO], scope="config")
 
     policy_cfg = _resolve_policy_config(payload, cfg_path)
-    portfolio_cfg = payload["portfolio"]
-    rec_cfg = payload.get("recommendation", {})
+    portfolio_cfg = payload[KEY_PORTFOLIO]
+    rec_cfg = payload.get(KEY_RECOMMENDATION, {})
 
-    _require_keys(portfolio_cfg, ["cash"], scope="portfolio")
-    current_cash = float(portfolio_cfg["cash"])
-    current_positions = portfolio_cfg.get("positions", {})
-    min_trade_shares = float(rec_cfg.get("min_trade_shares", 1.0))
+    _require_keys(portfolio_cfg, [KEY_CASH], scope="portfolio")
+    current_cash = float(portfolio_cfg[KEY_CASH])
+    current_positions = portfolio_cfg.get(KEY_POSITIONS, {})
+    min_trade_shares = float(rec_cfg.get("min_trade_shares", DEFAULT_MIN_TRADE_SHARES))
 
     ohlcv_map, index_close = _load_market_data(payload, cfg_path)
     recommendations, target_weights, risk_on = recommend_positions(
@@ -397,11 +435,11 @@ def recommend_from_config(config_path: str) -> int:
         min_trade_shares=min_trade_shares,
     )
 
-    regime_label = "RISK_ON" if risk_on == 1 else "RISK_OFF"
+    regime_label = LABEL_RISK_ON if risk_on == RISK_ON_FLAG else LABEL_RISK_OFF
     print(f"Regime: {regime_label}")
     print("Target weights:")
     nonzero = target_weights[target_weights > 0].sort_values(ascending=False).round(4)
-    print(nonzero.to_string() if len(nonzero) else "No target exposure (all cash)")
+    print(nonzero.to_string() if len(nonzero) else NO_TARGET_EXPOSURE_TEXT)
 
     print("\nRecommendations:")
     rec_df = _format_recommendations(recommendations)

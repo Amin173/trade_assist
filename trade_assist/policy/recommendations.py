@@ -5,6 +5,23 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
+from ..ta.constants import COL_CLOSE, COL_VOLUME
+from .constants import (
+    ACTION_BUY,
+    ACTION_HOLD,
+    ACTION_SELL,
+    REASON_ADV_BELOW_TEMPLATE,
+    REASON_BELOW_EMA200,
+    REASON_LIQUIDITY_CAPPED_TEMPLATE,
+    REASON_LIQUIDITY_DISALLOWS,
+    REASON_NO_ADV,
+    REASON_SCORE_TEMPLATE,
+    REASON_SCORE_UNAVAILABLE,
+    REASON_UNTRADABLE_PRICE,
+    EPSILON,
+    ONE,
+    ZERO,
+)
 from .config import PolicyConfig
 from .features import build_asset_features, score_assets
 from .portfolio import softmax_weights, vol_target_scale
@@ -32,41 +49,41 @@ def _apply_liquidity_to_target_shares(
 ) -> tuple[pd.Series, dict[str, str]]:
     adjusted = target_shares.copy()
     notes: dict[str, str] = {}
-    max_frac = max(float(max_trade_adv_fraction), 0.0)
+    max_frac = max(float(max_trade_adv_fraction), ZERO)
 
     for ticker in adjusted.index:
         px = float(latest_prices.loc[ticker]) if pd.notna(latest_prices.loc[ticker]) else np.nan
         adv = float(latest_adv_dollars.loc[ticker]) if pd.notna(latest_adv_dollars.loc[ticker]) else np.nan
         if not np.isfinite(px) or px <= 0:
             adjusted.loc[ticker] = current_shares.loc[ticker]
-            notes[ticker] = "Untradable price snapshot"
+            notes[ticker] = REASON_UNTRADABLE_PRICE
             continue
 
         delta = float(adjusted.loc[ticker] - current_shares.loc[ticker])
-        if abs(delta) <= 1e-12:
+        if abs(delta) <= EPSILON:
             continue
 
         if not np.isfinite(adv) or adv <= 0:
             adjusted.loc[ticker] = current_shares.loc[ticker]
-            notes[ticker] = "No liquidity data (ADV)"
+            notes[ticker] = REASON_NO_ADV
             continue
 
         if delta > 0 and min_adv_dollars > 0 and adv < min_adv_dollars:
             adjusted.loc[ticker] = current_shares.loc[ticker]
-            notes[ticker] = f"ADV below minimum (${adv:,.0f} < ${min_adv_dollars:,.0f})"
+            notes[ticker] = REASON_ADV_BELOW_TEMPLATE.format(adv=adv, min_adv=min_adv_dollars)
             continue
 
         max_notional = adv * max_frac
         if max_notional <= 0:
             adjusted.loc[ticker] = current_shares.loc[ticker]
-            notes[ticker] = "Liquidity cap disallows trading"
+            notes[ticker] = REASON_LIQUIDITY_DISALLOWS
             continue
 
         requested_notional = abs(delta * px)
         if requested_notional > max_notional:
             capped_delta = np.sign(delta) * (max_notional / px)
             adjusted.loc[ticker] = current_shares.loc[ticker] + capped_delta
-            notes[ticker] = f"Trade capped by liquidity ({max_frac:.1%} ADV)"
+            notes[ticker] = REASON_LIQUIDITY_CAPPED_TEMPLATE.format(fraction=max_frac)
 
     return adjusted, notes
 
@@ -80,7 +97,7 @@ def _latest_target_weights(
     feats = {ticker: build_asset_features(ohlcv_map[ticker]) for ticker in tickers}
     scores = score_assets(feats, config.score_weights)
 
-    close_df = pd.concat({ticker: ohlcv_map[ticker]["Close"] for ticker in tickers}, axis=1)
+    close_df = pd.concat({ticker: ohlcv_map[ticker][COL_CLOSE] for ticker in tickers}, axis=1)
     ret_df = close_df.pct_change()
     day = close_df.index[-1]
 
@@ -99,7 +116,7 @@ def _latest_target_weights(
         if np.isfinite(c_over_ema200) and c_over_ema200 > 0:
             eligible.append(ticker)
 
-    target_w = pd.Series(0.0, index=tickers)
+    target_w = pd.Series(ZERO, index=tickers)
     if not eligible:
         return target_w, risk_on, feats, scores
 
@@ -115,10 +132,10 @@ def _latest_target_weights(
     window = ret_df.loc[:, eligible].tail(config.covariance_lookback)
     cov = ledoit_wolf_shrinkage_cov(window)
     if cov.isna().values.any() or cov.empty:
-        cov = window.cov().fillna(0.0)
+        cov = window.cov().fillna(ZERO)
 
     scale = vol_target_scale(w, cov, target_vol)
-    w = w * min(scale, 1.0)
+    w = w * min(scale, ONE)
     if w.sum() > gross_cap:
         w = w * (gross_cap / w.sum())
 
@@ -132,22 +149,24 @@ def recommend_positions(
     current_positions: dict[str, float],
     current_cash: float,
     config: PolicyConfig,
-    min_trade_shares: float = 1.0,
+    min_trade_shares: float = ONE,
 ) -> tuple[list[Recommendation], pd.Series, int]:
     tickers = list(ohlcv_map.keys())
-    close_df = pd.concat({ticker: ohlcv_map[ticker]["Close"] for ticker in tickers}, axis=1)
+    close_df = pd.concat({ticker: ohlcv_map[ticker][COL_CLOSE] for ticker in tickers}, axis=1)
     volume_df = pd.concat(
         {
-            ticker: ohlcv_map[ticker]["Volume"] if "Volume" in ohlcv_map[ticker] else pd.Series(0.0, index=close_df.index)
+            ticker: ohlcv_map[ticker][COL_VOLUME]
+            if COL_VOLUME in ohlcv_map[ticker]
+            else pd.Series(ZERO, index=close_df.index)
             for ticker in tickers
         },
         axis=1,
     )
     latest_day = close_df.index[-1]
     latest_prices = close_df.loc[latest_day].reindex(tickers)
-    latest_adv_dollars = (volume_df.loc[latest_day].reindex(tickers) * latest_prices).fillna(0.0)
+    latest_adv_dollars = (volume_df.loc[latest_day].reindex(tickers) * latest_prices).fillna(ZERO)
 
-    current_shares = pd.Series(0.0, index=tickers)
+    current_shares = pd.Series(ZERO, index=tickers)
     for ticker, shares in current_positions.items():
         if ticker in current_shares.index:
             current_shares.loc[ticker] = float(shares)
@@ -156,7 +175,11 @@ def recommend_positions(
     target_w, risk_on, feats, scores = _latest_target_weights(ohlcv_map, index_close, config)
 
     target_dollars = equity * target_w
-    target_shares = (target_dollars / latest_prices.replace(0, np.nan)).replace([np.inf, -np.inf], np.nan).fillna(0.0)
+    target_shares = (
+        (target_dollars / latest_prices.replace(ZERO, np.nan))
+        .replace([np.inf, -np.inf], np.nan)
+        .fillna(ZERO)
+    )
     target_shares, liquidity_notes = _apply_liquidity_to_target_shares(
         target_shares=target_shares,
         current_shares=current_shares,
@@ -173,20 +196,20 @@ def recommend_positions(
         delta = target - current
 
         if abs(delta) < min_trade_shares:
-            action = "HOLD"
+            action = ACTION_HOLD
         elif delta > 0:
-            action = "BUY"
+            action = ACTION_BUY
         else:
-            action = "SELL"
+            action = ACTION_SELL
 
         c_over_ema200 = float(feats[ticker].iloc[-1]["c_over_ema200"])
         score = float(scores[ticker].iloc[-1]) if pd.notna(scores[ticker].iloc[-1]) else float("nan")
         if not np.isfinite(c_over_ema200) or c_over_ema200 <= 0:
-            reason = "Below EMA200 filter"
+            reason = REASON_BELOW_EMA200
         elif np.isfinite(score):
-            reason = f"Eligible with score {score:.3f}"
+            reason = REASON_SCORE_TEMPLATE.format(score=score)
         else:
-            reason = "Eligible but score unavailable"
+            reason = REASON_SCORE_UNAVAILABLE
         if ticker in liquidity_notes:
             reason = f"{reason}; {liquidity_notes[ticker]}"
 

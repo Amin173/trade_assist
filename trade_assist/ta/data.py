@@ -6,6 +6,17 @@ from pathlib import Path
 import pandas as pd
 import yfinance as yf
 
+from .constants import (
+    CANONICAL_COLUMN_MAP,
+    COL_CLOSE,
+    DEFAULT_CACHE_DIR,
+    DEFAULT_CACHE_TTL_HOURS,
+    DEFAULT_INTERVAL,
+    DEFAULT_PERIOD,
+    FUZZY_COLUMN_ORDER,
+    OHLCV_COLUMNS,
+)
+
 
 def _normalize_columns(df: pd.DataFrame, ticker: str) -> pd.DataFrame:
     out = df.copy()
@@ -33,19 +44,10 @@ def _normalize_columns(df: pd.DataFrame, ticker: str) -> pd.DataFrame:
                 ]
                 break
 
-    canonical = {
-        "open": "Open",
-        "high": "High",
-        "low": "Low",
-        "close": "Close",
-        "adj close": "Adj Close",
-        "adjclose": "Adj Close",
-        "volume": "Volume",
-    }
-    out = out.rename(columns=lambda c: canonical.get(str(c).strip().lower(), c))
+    out = out.rename(columns=lambda c: CANONICAL_COLUMN_MAP.get(str(c).strip().lower(), c))
 
     # Fallback: map fuzzy names like "Close VRT" -> "Close".
-    for wanted in ["Open", "High", "Low", "Close", "Adj Close", "Volume"]:
+    for wanted in FUZZY_COLUMN_ORDER:
         if wanted in out.columns:
             continue
         w = wanted.lower()
@@ -59,13 +61,13 @@ def _normalize_columns(df: pd.DataFrame, ticker: str) -> pd.DataFrame:
 
 
 def _validate_ohlcv(df: pd.DataFrame, ticker: str) -> pd.DataFrame:
-    required = {"Open", "High", "Low", "Close", "Volume"}
+    required = set(OHLCV_COLUMNS)
     missing = sorted(required.difference(df.columns))
     if missing:
         raise RuntimeError(
             f"Missing expected OHLCV columns for {ticker}: {missing}. Got columns: {list(df.columns)}"
         )
-    out = df.dropna(subset=["Close"]).sort_index()
+    out = df.dropna(subset=[COL_CLOSE]).sort_index()
     if out.empty:
         raise RuntimeError(f"No usable OHLCV rows after cleanup for {ticker}.")
     return out
@@ -96,11 +98,11 @@ def _read_cached_ohlcv(path: Path, ticker: str) -> pd.DataFrame:
 
 def fetch_ohlcv(
     ticker: str,
-    period: str = "3y",
-    interval: str = "1d",
+    period: str = DEFAULT_PERIOD,
+    interval: str = DEFAULT_INTERVAL,
     use_cache: bool = False,
-    cache_dir: str | Path = ".cache/market_data",
-    cache_ttl_hours: float | None = 24.0,
+    cache_dir: str | Path = DEFAULT_CACHE_DIR,
+    cache_ttl_hours: float | None = DEFAULT_CACHE_TTL_HOURS,
     force_refresh: bool = False,
 ) -> pd.DataFrame:
     cache_path = _cache_file_path(cache_dir=cache_dir, ticker=ticker, period=period, interval=interval)
@@ -131,11 +133,11 @@ def fetch_ohlcv(
 
 def fetch_ohlcv_map(
     tickers: list[str],
-    period: str = "3y",
-    interval: str = "1d",
+    period: str = DEFAULT_PERIOD,
+    interval: str = DEFAULT_INTERVAL,
     use_cache: bool = False,
-    cache_dir: str | Path = ".cache/market_data",
-    cache_ttl_hours: float | None = 24.0,
+    cache_dir: str | Path = DEFAULT_CACHE_DIR,
+    cache_ttl_hours: float | None = DEFAULT_CACHE_TTL_HOURS,
     force_refresh: bool = False,
 ) -> dict[str, pd.DataFrame]:
     return {

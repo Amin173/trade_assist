@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from .policy import PolicyConfig
+from .ta.constants import DEFAULT_INDEX_TICKER, DEFAULT_PERIOD
 from .ta.runner import run_ta
 from .workflow import backtest_from_tickers
 
@@ -30,7 +31,12 @@ def main() -> None:
         }
     )
 
-    result = backtest_from_tickers(tickers=tickers, index_ticker="SPY", period="5y", config=config)
+    result = backtest_from_tickers(
+        tickers=tickers,
+        index_ticker=DEFAULT_INDEX_TICKER,
+        period=DEFAULT_PERIOD,
+        config=config,
+    )
     print("\nFinal equity:", round(float(result.equity_curve.iloc[-1]), 2))
     print("Final cash:", round(result.final_cash, 2))
     print("Final holdings (shares):")
