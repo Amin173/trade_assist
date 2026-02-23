@@ -1,0 +1,17 @@
+{
+  "rebalance_freq": "W-FRI",
+  "target_vol_risk_on": 0.22,
+  "gross_cap_risk_on": 1.0,
+  "gross_cap_risk_off": 0.3,
+  "max_weight": 0.45,
+  "min_hold_days": 10,
+  "risk_off_target_vol_multiplier": 0.5,
+  "covariance_lookback": 252,
+  "score_weights": {
+    "c_over_ema200": 0.35,
+    "ema50_over_ema200": 0.25,
+    "mom_252_21": 0.25,
+    "vol_adjusted_momentum": 0.15,
+    "breakout55": 0.1
+  }
+}

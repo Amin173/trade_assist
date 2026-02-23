@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "trade_assist backtest config",
+  "type": "object",
+  "required": ["data", "portfolio"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {"type": "string"},
+    "data": {
+      "type": "object",
+      "required": ["tickers"],
+      "additionalProperties": false,
+      "properties": {
+        "tickers": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "index_ticker": {"type": "string", "default": "SPY"},
+        "period": {"type": "string", "default": "5y"},
+        "interval": {"type": "string", "default": "1d"}
+      }
+    },
+    "policy_path": {"type": "string"},
+    "policy": {"$ref": "#/$defs/policy"},
+    "output": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "verbose": {"type": "boolean"},
+        "print_performance_stats": {"type": "boolean"},
+        "print_rebalance_log": {"type": "boolean"},
+        "rebalance_log_tail": {"type": "integer", "minimum": 1},
+        "save_performance_stats_json": {"type": "string"},
+        "save_equity_curve_csv": {"type": "string"},
+        "save_rebalance_log_csv": {"type": "string"},
+        "plot_equity_curve": {"type": "boolean"},
+        "equity_curve_plot_path": {"type": "string"}
+      }
+    },
+    "portfolio": {
+      "type": "object",
+      "required": ["cash"],
+      "additionalProperties": false,
+      "properties": {
+        "cash": {"type": "number", "minimum": 0},
+        "positions": {
+          "type": "object",
+          "additionalProperties": {"type": "number"}
+        }
+      }
+    }
+  },
+  "$defs": {
+    "score_weights": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "c_over_ema200": {"type": "number"},
+        "ema50_over_ema200": {"type": "number"},
+        "mom_252_21": {"type": "number"},
+        "vol_adjusted_momentum": {"type": "number"},
+        "breakout55": {"type": "number"}
+      }
+    },
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "rebalance_freq": {"type": "string"},
+        "target_vol_risk_on": {"type": "number"},
+        "gross_cap_risk_on": {"type": "number"},
+        "gross_cap_risk_off": {"type": "number"},
+        "max_weight": {"type": "number"},
+        "min_hold_days": {"type": "integer", "minimum": 0},
+        "risk_off_target_vol_multiplier": {"type": "number"},
+        "covariance_lookback": {"type": "integer", "minimum": 1},
+        "score_weights": {"$ref": "#/$defs/score_weights"}
+      }
+    }
+  }
+}

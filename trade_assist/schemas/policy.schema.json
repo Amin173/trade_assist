@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "trade_assist policy config",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "rebalance_freq": {"type": "string"},
+    "target_vol_risk_on": {"type": "number"},
+    "gross_cap_risk_on": {"type": "number"},
+    "gross_cap_risk_off": {"type": "number"},
+    "max_weight": {"type": "number"},
+    "min_hold_days": {"type": "integer", "minimum": 0},
+    "risk_off_target_vol_multiplier": {"type": "number"},
+    "covariance_lookback": {"type": "integer", "minimum": 1},
+    "score_weights": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "c_over_ema200": {"type": "number"},
+        "ema50_over_ema200": {"type": "number"},
+        "mom_252_21": {"type": "number"},
+        "vol_adjusted_momentum": {"type": "number"},
+        "breakout55": {"type": "number"}
+      }
+    }
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "target_vol_risk_on": 0.16,
+  "gross_cap_risk_on": 0.8,
+  "gross_cap_risk_off": 0.2,
+  "max_weight": 0.35,
+  "min_hold_days": 15
+}

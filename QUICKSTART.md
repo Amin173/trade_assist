@@ -1,0 +1,86 @@
+# Quickstart
+
+This guide shows how to test your own stocks and your own positions.
+
+## 1. Pick the stocks you care about
+
+Open one of these files:
+
+- `config.backtest.example.json`
+- `config.recommend.example.json`
+
+Edit `data.tickers` with your symbols, for example:
+
+```json
+"tickers": ["MSFT", "NVDA", "AAPL"]
+```
+
+## 2. Pick a policy file
+
+Set `policy_path` in config, for example:
+
+- `"policy_path": "policies/baseline.json"`
+- `"policy_path": "policies/defensive.json"`
+
+## 3. Set your portfolio state
+
+Edit `portfolio`:
+
+- `cash`: cash available
+- `positions`: shares you currently hold
+
+Example:
+
+```json
+"portfolio": {
+  "cash": 50000,
+  "positions": {
+    "MSFT": 20,
+    "NVDA": 15,
+    "AAPL": 10
+  }
+}
+```
+
+If you want to test from a clean slate, set all positions to `0`.
+
+## 4. Run a backtest
+
+Use the backtest template and run:
+
+```bash
+cp config.backtest.example.json config.backtest.json
+trade-assist backtest --config config.backtest.json
+```
+
+This tells you how the policy would have performed historically from your configured starting state.
+It also prints risk/return metrics (CAGR, volatility, Sharpe, max drawdown, and more).
+
+Optional diagnostics:
+
+- In `config.backtest.json`, set `output.verbose` to `true` for extra run stats.
+- Set `output.save_equity_curve_csv` / `output.save_rebalance_log_csv` to export files.
+- Set `output.plot_equity_curve` to `true` and `output.equity_curve_plot_path` to save a plot image.
+
+## 5. Run recommendations
+
+Use the recommend template and run:
+
+```bash
+cp config.recommend.example.json config.recommend.json
+trade-assist recommend --config config.recommend.json
+```
+
+This compares your current portfolio with the model target and prints `BUY`, `SELL`, or `HOLD` per ticker.
+
+## 6. Optional: test with MSFT/NVDA sample
+
+```bash
+trade-assist recommend --config config.msft_nvda.example.json
+```
+
+## 7. Tune policy only after baseline works
+
+Once commands run end-to-end, adjust `policy` values (rebalance frequency, max weight, risk caps) one change at a time.
+
+For full parameter definitions, see `CONFIG.md`.

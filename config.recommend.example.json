@@ -1,0 +1,21 @@
+{
+  "$schema": "./trade_assist/schemas/recommend.schema.json",
+  "data": {
+    "tickers": ["VRT", "ANET", "CDNS"],
+    "index_ticker": "SPY",
+    "period": "5y",
+    "interval": "1d"
+  },
+  "policy_path": "policies/baseline.json",
+  "portfolio": {
+    "cash": 10000,
+    "positions": {
+      "VRT": 0,
+      "ANET": 0,
+      "CDNS": 0
+    }
+  },
+  "recommendation": {
+    "min_trade_shares": 1
+  }
+}
