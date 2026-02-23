@@ -42,6 +42,11 @@ If `policy_path` is relative, it is resolved relative to the config file.
 - `index_ticker` (`string`, default `SPY`): benchmark used for market regime detection.
 - `period` (`string`, default `5y`): historical range to download.
 - `interval` (`string`, default `1d`): bar interval.
+- `use_cache` (`boolean`, default `false`): cache downloaded market data locally.
+- `cache_dir` (`string`, default `.cache/market_data`): local folder for cache files. Relative paths are resolved from the config file location.
+- `cache_ttl_hours` (`number | null`, default `24`): cache freshness window in hours. Use `null` for no expiry.
+- `force_refresh` (`boolean`, default `false`): bypass cache and fetch fresh data now.
+- If a live download fails and a cache file exists, the cached data is used as fallback.
 
 Example:
 
@@ -50,7 +55,11 @@ Example:
   "tickers": ["MSFT", "NVDA"],
   "index_ticker": "SPY",
   "period": "5y",
-  "interval": "1d"
+  "interval": "1d",
+  "use_cache": true,
+  "cache_dir": ".cache/market_data",
+  "cache_ttl_hours": 24,
+  "force_refresh": false
 }
 ```
 
@@ -93,6 +102,17 @@ Core controls:
 - `min_hold_days` (`integer`, default `10`): minimum number of days before the model can resize a position. Higher values reduce churn.
 - `risk_off_target_vol_multiplier` (`number`, default `0.5`): scales risk target in defensive conditions. Example: `0.22 * 0.5 = 0.11`.
 - `covariance_lookback` (`integer`, default `252`): number of historical trading days used to estimate correlation/risk structure. Larger windows are steadier but slower to adapt.
+
+`liquidity`:
+
+- `min_adv_dollars` (`number`, default `0`): minimum daily dollar volume required for new buys. If a symbol trades less than this level, the model does not add to it.
+- `max_trade_adv_fraction` (`number`, default `0.10`): maximum size for any single trade as a fraction of one day of dollar volume. Example: `0.10` means each buy/sell is capped at 10% of that symbol's daily dollar volume.
+
+`risk_exit`:
+
+- `stop_loss_pct` (`number`, default `0`): hard loss limit from entry price. Example: `0.12` exits when price falls 12% below entry.
+- `trailing_stop_pct` (`number`, default `0`): moving loss limit from the highest price reached while in position. Example: `0.15` exits after a 15% pullback from that local high.
+- `cooldown_days` (`integer`, default `0`): days to wait after a forced risk exit before opening a new position in that symbol.
 
 `score_weights`:
 
@@ -152,6 +172,7 @@ Cash rule:
 
 - Backtest uses a no-leverage baseline. If buys exceed cash, buy orders are scaled down.
 - Full-hold benchmark lines start from the strategy's first invested date (not necessarily the first date in the dataset).
+- Rebalance log includes event details (`rebalance` vs `risk_exit`), forced-exit symbols, and liquidity-cap counters.
 
 ## `trade-assist recommend`
 
@@ -180,6 +201,11 @@ Compares current holdings to model target holdings and returns `BUY`, `SELL`, or
 - `data`: see backtest `data`.
 - `portfolio`: see backtest `portfolio` (same schema, interpreted as current account state).
 - `policy`: see backtest `policy` and `Regime logic`.
+
+Recommendation-specific behavior:
+
+- Liquidity controls from `policy.liquidity` are applied before final actions are printed, so recommendation sizes are capped to market depth.
+- `risk_exit` rules are enforced in `backtest` only, because recommendation mode does not track per-position entry/high-water state.
 
 ### `recommendation`
 

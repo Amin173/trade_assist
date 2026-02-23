@@ -22,6 +22,55 @@ class Recommendation:
     reason: str
 
 
+def _apply_liquidity_to_target_shares(
+    target_shares: pd.Series,
+    current_shares: pd.Series,
+    latest_prices: pd.Series,
+    latest_adv_dollars: pd.Series,
+    min_adv_dollars: float,
+    max_trade_adv_fraction: float,
+) -> tuple[pd.Series, dict[str, str]]:
+    adjusted = target_shares.copy()
+    notes: dict[str, str] = {}
+    max_frac = max(float(max_trade_adv_fraction), 0.0)
+
+    for ticker in adjusted.index:
+        px = float(latest_prices.loc[ticker]) if pd.notna(latest_prices.loc[ticker]) else np.nan
+        adv = float(latest_adv_dollars.loc[ticker]) if pd.notna(latest_adv_dollars.loc[ticker]) else np.nan
+        if not np.isfinite(px) or px <= 0:
+            adjusted.loc[ticker] = current_shares.loc[ticker]
+            notes[ticker] = "Untradable price snapshot"
+            continue
+
+        delta = float(adjusted.loc[ticker] - current_shares.loc[ticker])
+        if abs(delta) <= 1e-12:
+            continue
+
+        if not np.isfinite(adv) or adv <= 0:
+            adjusted.loc[ticker] = current_shares.loc[ticker]
+            notes[ticker] = "No liquidity data (ADV)"
+            continue
+
+        if delta > 0 and min_adv_dollars > 0 and adv < min_adv_dollars:
+            adjusted.loc[ticker] = current_shares.loc[ticker]
+            notes[ticker] = f"ADV below minimum (${adv:,.0f} < ${min_adv_dollars:,.0f})"
+            continue
+
+        max_notional = adv * max_frac
+        if max_notional <= 0:
+            adjusted.loc[ticker] = current_shares.loc[ticker]
+            notes[ticker] = "Liquidity cap disallows trading"
+            continue
+
+        requested_notional = abs(delta * px)
+        if requested_notional > max_notional:
+            capped_delta = np.sign(delta) * (max_notional / px)
+            adjusted.loc[ticker] = current_shares.loc[ticker] + capped_delta
+            notes[ticker] = f"Trade capped by liquidity ({max_frac:.1%} ADV)"
+
+    return adjusted, notes
+
+
 def _latest_target_weights(
     ohlcv_map: dict[str, pd.DataFrame],
     index_close: pd.Series,
@@ -87,8 +136,16 @@ def recommend_positions(
 ) -> tuple[list[Recommendation], pd.Series, int]:
     tickers = list(ohlcv_map.keys())
     close_df = pd.concat({ticker: ohlcv_map[ticker]["Close"] for ticker in tickers}, axis=1)
+    volume_df = pd.concat(
+        {
+            ticker: ohlcv_map[ticker]["Volume"] if "Volume" in ohlcv_map[ticker] else pd.Series(0.0, index=close_df.index)
+            for ticker in tickers
+        },
+        axis=1,
+    )
     latest_day = close_df.index[-1]
     latest_prices = close_df.loc[latest_day].reindex(tickers)
+    latest_adv_dollars = (volume_df.loc[latest_day].reindex(tickers) * latest_prices).fillna(0.0)
 
     current_shares = pd.Series(0.0, index=tickers)
     for ticker, shares in current_positions.items():
@@ -100,6 +157,14 @@ def recommend_positions(
 
     target_dollars = equity * target_w
     target_shares = (target_dollars / latest_prices.replace(0, np.nan)).replace([np.inf, -np.inf], np.nan).fillna(0.0)
+    target_shares, liquidity_notes = _apply_liquidity_to_target_shares(
+        target_shares=target_shares,
+        current_shares=current_shares,
+        latest_prices=latest_prices,
+        latest_adv_dollars=latest_adv_dollars,
+        min_adv_dollars=config.liquidity.min_adv_dollars,
+        max_trade_adv_fraction=config.liquidity.max_trade_adv_fraction,
+    )
 
     recommendations: list[Recommendation] = []
     for ticker in tickers:
@@ -122,6 +187,8 @@ def recommend_positions(
             reason = f"Eligible with score {score:.3f}"
         else:
             reason = "Eligible but score unavailable"
+        if ticker in liquidity_notes:
+            reason = f"{reason}; {liquidity_notes[ticker]}"
 
         recommendations.append(
             Recommendation(

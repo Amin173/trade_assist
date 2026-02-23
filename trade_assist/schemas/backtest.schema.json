@@ -18,7 +18,17 @@
         },
         "index_ticker": {"type": "string", "default": "SPY"},
         "period": {"type": "string", "default": "5y"},
-        "interval": {"type": "string", "default": "1d"}
+        "interval": {"type": "string", "default": "1d"},
+        "use_cache": {"type": "boolean", "default": false},
+        "cache_dir": {"type": "string", "default": ".cache/market_data"},
+        "cache_ttl_hours": {
+          "oneOf": [
+            {"type": "number", "exclusiveMinimum": 0},
+            {"type": "null"}
+          ],
+          "default": 24
+        },
+        "force_refresh": {"type": "boolean", "default": false}
       }
     },
     "policy_path": {"type": "string"},
@@ -83,6 +93,23 @@
         "min_hold_days": {"type": "integer", "minimum": 0},
         "risk_off_target_vol_multiplier": {"type": "number"},
         "covariance_lookback": {"type": "integer", "minimum": 1},
+        "liquidity": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "min_adv_dollars": {"type": "number", "minimum": 0},
+            "max_trade_adv_fraction": {"type": "number", "minimum": 0}
+          }
+        },
+        "risk_exit": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "stop_loss_pct": {"type": "number", "minimum": 0, "maximum": 1},
+            "trailing_stop_pct": {"type": "number", "minimum": 0, "maximum": 1},
+            "cooldown_days": {"type": "integer", "minimum": 0}
+          }
+        },
         "score_weights": {"$ref": "#/$defs/score_weights"}
       }
     }

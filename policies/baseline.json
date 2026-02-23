@@ -7,6 +7,15 @@
   "min_hold_days": 10,
   "risk_off_target_vol_multiplier": 0.5,
   "covariance_lookback": 252,
+  "liquidity": {
+    "min_adv_dollars": 1000000,
+    "max_trade_adv_fraction": 0.1
+  },
+  "risk_exit": {
+    "stop_loss_pct": 0.12,
+    "trailing_stop_pct": 0.15,
+    "cooldown_days": 5
+  },
   "score_weights": {
     "c_over_ema200": 0.35,
     "ema50_over_ema200": 0.25,

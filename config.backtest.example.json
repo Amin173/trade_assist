@@ -4,7 +4,11 @@
     "tickers": ["NVDA"],
     "index_ticker": "SPY",
     "period": "5y",
-    "interval": "1d"
+    "interval": "1d",
+    "use_cache": true,
+    "cache_dir": ".cache/market_data",
+    "cache_ttl_hours": 24,
+    "force_refresh": false
   },
   "policy_path": "policies/baseline.json",
   "portfolio": {

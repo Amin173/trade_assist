@@ -31,6 +31,7 @@ Template: `config.backtest.example.json`
 
 Backtest supports optional diagnostics (verbose logs, CSV exports for equity/cash/positions, plots, and optional full-hold benchmark overlays) via the `output` section in config.
 Backtest output also includes core risk/return stats (return, CAGR, volatility, Sharpe, max drawdown).
+Policy configs also support liquidity limits and early-exit rules (stop-loss / trailing-stop / cooldown).
 
 ### `trade-assist recommend`
 
@@ -54,6 +55,7 @@ Policy files:
 
 - Store policy JSON files under `policies/` (for example `policies/baseline.json`, `policies/defensive.json`, `policies/aggressive.json`).
 - Select one in config with `policy_path`.
+- Data config supports optional local caching (`use_cache`, `cache_dir`, `cache_ttl_hours`, `force_refresh`).
 
 ## Notes
 

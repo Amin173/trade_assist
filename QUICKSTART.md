@@ -23,6 +23,11 @@ Set `policy_path` in config, for example:
 - `"policy_path": "policies/defensive.json"`
 - `"policy_path": "policies/aggressive.json"`
 
+These policy files now include:
+
+- liquidity limits (trade size vs market volume)
+- early-exit rules (stop-loss / trailing stop)
+
 ## 3. Set your portfolio state
 
 Edit `portfolio`:
@@ -67,6 +72,12 @@ Optional diagnostics:
 - Optionally set `output.full_hold_benchmark_tickers` to choose which tickers to include.
 - Set `output.save_rebalance_log_csv` to export rebalance rows.
 - Set `output.plot_equity_curve` to `true` and `output.equity_curve_plot_path` to save a combined chart (equity + cash + positions).
+
+Data caching:
+
+- Set `data.use_cache` to `true` to cache market data locally.
+- Use `data.cache_ttl_hours` to control refresh window.
+- Set `data.force_refresh` to `true` when you want a fresh pull immediately.
 
 ## 5. Run recommendations
 

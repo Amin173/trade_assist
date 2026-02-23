@@ -26,7 +26,9 @@ def _require_keys(payload: dict[str, Any], required: list[str], scope: str = "co
         raise ValueError(f"Missing required {scope} key(s): {', '.join(missing)}")
 
 
-def _extract_data_cfg(payload: dict[str, Any]) -> tuple[list[str], str, str, str]:
+def _extract_data_cfg(
+    payload: dict[str, Any],
+) -> tuple[list[str], str, str, str, bool, str, float | None, bool]:
     _require_keys(payload, ["data"], scope="config")
     data_cfg = payload["data"]
     _require_keys(data_cfg, ["tickers"], scope="data")
@@ -38,13 +40,38 @@ def _extract_data_cfg(payload: dict[str, Any]) -> tuple[list[str], str, str, str
     index_ticker = data_cfg.get("index_ticker", "SPY")
     period = data_cfg.get("period", "5y")
     interval = data_cfg.get("interval", "1d")
-    return tickers, index_ticker, period, interval
+    use_cache = bool(data_cfg.get("use_cache", False))
+    cache_dir = str(data_cfg.get("cache_dir", ".cache/market_data"))
+    cache_ttl_hours_raw = data_cfg.get("cache_ttl_hours", 24)
+    cache_ttl_hours = None if cache_ttl_hours_raw is None else float(cache_ttl_hours_raw)
+    force_refresh = bool(data_cfg.get("force_refresh", False))
+    return tickers, index_ticker, period, interval, use_cache, cache_dir, cache_ttl_hours, force_refresh
 
 
-def _load_market_data(payload: dict[str, Any]) -> tuple[dict[str, pd.DataFrame], pd.Series]:
-    tickers, index_ticker, period, interval = _extract_data_cfg(payload)
-    ohlcv_map = fetch_ohlcv_map(tickers=tickers, period=period, interval=interval)
-    index_df = fetch_ohlcv_map([index_ticker], period=period, interval=interval)[index_ticker]
+def _load_market_data(payload: dict[str, Any], config_path: Path | None = None) -> tuple[dict[str, pd.DataFrame], pd.Series]:
+    tickers, index_ticker, period, interval, use_cache, cache_dir, cache_ttl_hours, force_refresh = _extract_data_cfg(payload)
+    cache_root = Path(cache_dir)
+    if config_path is not None and not cache_root.is_absolute():
+        cache_root = (config_path.parent / cache_root).resolve()
+
+    ohlcv_map = fetch_ohlcv_map(
+        tickers=tickers,
+        period=period,
+        interval=interval,
+        use_cache=use_cache,
+        cache_dir=cache_root,
+        cache_ttl_hours=cache_ttl_hours,
+        force_refresh=force_refresh,
+    )
+    index_df = fetch_ohlcv_map(
+        [index_ticker],
+        period=period,
+        interval=interval,
+        use_cache=use_cache,
+        cache_dir=cache_root,
+        cache_ttl_hours=cache_ttl_hours,
+        force_refresh=force_refresh,
+    )[index_ticker]
     return ohlcv_map, index_df["Close"]
 
 
@@ -329,7 +356,7 @@ def backtest_from_config(config_path: str) -> int:
     initial_positions = portfolio_cfg.get("positions", {})
     output_cfg = payload.get("output", {})
 
-    ohlcv_map, index_close = _load_market_data(payload)
+    ohlcv_map, index_close = _load_market_data(payload, cfg_path)
     backtest = run_policy(
         ohlcv_map=ohlcv_map,
         index_close=index_close,
@@ -360,7 +387,7 @@ def recommend_from_config(config_path: str) -> int:
     current_positions = portfolio_cfg.get("positions", {})
     min_trade_shares = float(rec_cfg.get("min_trade_shares", 1.0))
 
-    ohlcv_map, index_close = _load_market_data(payload)
+    ohlcv_map, index_close = _load_market_data(payload, cfg_path)
     recommendations, target_weights, risk_on = recommend_positions(
         ohlcv_map=ohlcv_map,
         index_close=index_close,
