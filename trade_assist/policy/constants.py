@@ -3,8 +3,6 @@ from __future__ import annotations
 from ..ta.constants import TRADING_DAYS_PER_YEAR
 
 # Core numeric helpers
-ZERO = 0.0
-ONE = 1.0
 EPSILON = 1e-12
 VOL_ADJUST_EPSILON = 1e-9
 BPS_DENOMINATOR = 10_000.0

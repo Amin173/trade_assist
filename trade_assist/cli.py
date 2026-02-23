@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 
 from .config_validation import validate_config, validate_policy
-from .policy.constants import ANNUAL_TRADING_DAYS, ONE, RISK_ON_FLAG, ZERO
+from .policy.constants import ANNUAL_TRADING_DAYS, RISK_ON_FLAG
 from .policy import PolicyConfig, run_policy
 from .policy.recommendations import recommend_positions
 from .ta.constants import (
@@ -41,7 +41,7 @@ KEY_CACHE_DIR = "cache_dir"
 KEY_CACHE_TTL_HOURS = "cache_ttl_hours"
 KEY_FORCE_REFRESH = "force_refresh"
 
-DEFAULT_MIN_TRADE_SHARES = ONE
+DEFAULT_MIN_TRADE_SHARES = 1.0
 DEFAULT_REBALANCE_LOG_TAIL = 20
 DEFAULT_DAYS_PER_YEAR = 365.25
 INVESTED_EPSILON = 1e-9
@@ -198,39 +198,39 @@ def _compute_performance_stats(equity_curve: pd.Series) -> dict[str, float]:
     eq = equity_curve.dropna()
     if len(eq) < 2:
         return {
-            "total_return_pct": ZERO,
-            "cagr_pct": ZERO,
-            "annualized_vol_pct": ZERO,
-            "sharpe": ZERO,
-            "sortino": ZERO,
-            "max_drawdown_pct": ZERO,
-            "calmar": ZERO,
-            "win_rate_pct": ZERO,
-            "best_day_pct": ZERO,
-            "worst_day_pct": ZERO,
+            "total_return_pct": 0.0,
+            "cagr_pct": 0.0,
+            "annualized_vol_pct": 0.0,
+            "sharpe": 0.0,
+            "sortino": 0.0,
+            "max_drawdown_pct": 0.0,
+            "calmar": 0.0,
+            "win_rate_pct": 0.0,
+            "best_day_pct": 0.0,
+            "worst_day_pct": 0.0,
         }
 
     returns = eq.pct_change().dropna()
     if len(returns) == 0:
-        returns = pd.Series([ZERO], index=eq.index[:1])
+        returns = pd.Series([0.0], index=eq.index[:1])
 
-    total_return = float(eq.iloc[-1] / eq.iloc[0] - ONE)
+    total_return = float(eq.iloc[-1] / eq.iloc[0] - 1.0)
     duration_days = max((eq.index[-1] - eq.index[0]).days, 1)
     years = duration_days / DEFAULT_DAYS_PER_YEAR
-    cagr = float((eq.iloc[-1] / eq.iloc[0]) ** (ONE / years) - ONE) if eq.iloc[0] > ZERO else ZERO
+    cagr = float((eq.iloc[-1] / eq.iloc[0]) ** (1.0 / years) - 1.0) if eq.iloc[0] > 0.0 else 0.0
 
     annualized_vol = float(returns.std() * np.sqrt(ANNUAL_TRADING_DAYS))
     annualized_mean = float(returns.mean() * ANNUAL_TRADING_DAYS)
-    sharpe = float(annualized_mean / annualized_vol) if annualized_vol > ZERO else ZERO
+    sharpe = float(annualized_mean / annualized_vol) if annualized_vol > 0.0 else 0.0
 
     downside = returns[returns < 0]
-    downside_vol = float(downside.std() * np.sqrt(ANNUAL_TRADING_DAYS)) if len(downside) > 1 else ZERO
-    sortino = float(annualized_mean / downside_vol) if downside_vol > ZERO else ZERO
+    downside_vol = float(downside.std() * np.sqrt(ANNUAL_TRADING_DAYS)) if len(downside) > 1 else 0.0
+    sortino = float(annualized_mean / downside_vol) if downside_vol > 0.0 else 0.0
 
     running_max = eq.cummax()
-    drawdown = eq / running_max - ONE
+    drawdown = eq / running_max - 1.0
     max_drawdown = float(drawdown.min())
-    calmar = float(cagr / abs(max_drawdown)) if max_drawdown < ZERO else ZERO
+    calmar = float(cagr / abs(max_drawdown)) if max_drawdown < 0.0 else 0.0
 
     win_rate = float((returns > 0).mean())
     best_day = float(returns.max())
@@ -321,7 +321,7 @@ def _handle_backtest_output(backtest, output_cfg: dict[str, Any], ohlcv_map: dic
             invested_mask = invested.abs() > INVESTED_EPSILON
             if invested_mask.any():
                 benchmark_start_date = invested_mask[invested_mask].index[0]
-        start_equity = float(account.loc[benchmark_start_date, "equity"]) if len(account) else ZERO
+        start_equity = float(account.loc[benchmark_start_date, "equity"]) if len(account) else 0.0
         full_hold_benchmarks = _compute_full_hold_benchmarks(
             ohlcv_map=ohlcv_map,
             index=account.index,
@@ -345,7 +345,7 @@ def _handle_backtest_output(backtest, output_cfg: dict[str, Any], ohlcv_map: dic
     if verbose:
         print(f"Backtest points: {len(backtest.equity_curve)}")
         if len(backtest.equity_curve) > 1:
-            ret = backtest.equity_curve.iloc[-1] / backtest.equity_curve.iloc[0] - ONE
+            ret = backtest.equity_curve.iloc[-1] / backtest.equity_curve.iloc[0] - 1.0
             print(f"Total return: {ret * PERCENT_SCALE:.2f}%")
         if not backtest.rebalance_log.empty:
             avg_scale = float(backtest.rebalance_log["buy_scale"].mean())
@@ -414,12 +414,12 @@ def _handle_backtest_output(backtest, output_cfg: dict[str, Any], ohlcv_map: dic
             if not rebalance.empty:
                 equity_series = account["equity"]
                 y_span = float(equity_series.max() - equity_series.min())
-                y_offset = max(y_span * TRADE_MARKER_OFFSET_RATIO, ONE)
+                y_offset = max(y_span * TRADE_MARKER_OFFSET_RATIO, 1.0)
                 buy_days = pd.DatetimeIndex(
-                    rebalance.loc[rebalance["buy_notional"] > ZERO, "date"].unique()
+                    rebalance.loc[rebalance["buy_notional"] > 0.0, "date"].unique()
                 )
                 sell_days = pd.DatetimeIndex(
-                    rebalance.loc[rebalance["sell_notional"] > ZERO, "date"].unique()
+                    rebalance.loc[rebalance["sell_notional"] > 0.0, "date"].unique()
                 )
                 buy_points = equity_series.reindex(buy_days).dropna()
                 sell_points = equity_series.reindex(sell_days).dropna()
