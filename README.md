@@ -96,8 +96,9 @@ make release
 ```
 
 `make dev-setup` installs the development dependencies needed for formatting, testing, and packaging.
-`make build` creates source and wheel artifacts in `dist/` without changing code or running tests.
-`make release` auto-formats the Python codebase, runs the test suite, and then builds the release artifacts.
+`make build` creates source and wheel artifacts in `dist/` without running formatting or checks.
+`make format` runs autoflake and Black over the repo's Python sources.
+`make release` runs autoflake, Black, flake8, mypy, and tests before building the release artifacts.
 
 ## Notes
 

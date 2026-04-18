@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import json
-from pathlib import Path
 
 import pandas as pd
 
@@ -195,15 +194,15 @@ def test_format_failed_criteria_preview_compacts_long_lists():
         )
         == "trade_count>=5 x1 (observed 3), max_drawdown>=-45.00% x1 (observed -50.00%)"
     )
-    assert (
-        cli._format_failed_criteria_preview(
-            [
-                "trade_count>=5 x1 (observed 3)",
-                "max_drawdown>=-45.00% x1 (observed -50.00%)",
-                "trade_count>=5 x2 (observed 1)",
-            ]
-        )
-        == "trade_count>=5 x1 (observed 3), max_drawdown>=-45.00% x1 (observed -50.00%), +1 more"
+    assert cli._format_failed_criteria_preview(
+        [
+            "trade_count>=5 x1 (observed 3)",
+            "max_drawdown>=-45.00% x1 (observed -50.00%)",
+            "trade_count>=5 x2 (observed 1)",
+        ]
+    ) == (
+        "trade_count>=5 x1 (observed 3), "
+        "max_drawdown>=-45.00% x1 (observed -50.00%), +1 more"
     )
 
 

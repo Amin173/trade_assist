@@ -11,7 +11,11 @@ import sys
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_DIST_DIR = REPO_ROOT / "dist"
 BUILD_DIR = REPO_ROOT / "build"
-FORMAT_TARGETS = ("scripts", "setup.py", "trade_assist", "tests")
+STYLE_TARGETS = ("scripts", "setup.py", "trade_assist", "tests")
+AUTOFLAKE_FLAGS = (
+    "--remove-all-unused-imports",
+    "--remove-unused-variables",
+)
 
 
 class ReleaseToolError(RuntimeError):
@@ -53,11 +57,33 @@ def run_release(
     *,
     dist_dir: Path,
     skip_format: bool,
+    skip_lint: bool,
+    skip_typecheck: bool,
     skip_tests: bool,
 ) -> None:
     if not skip_format:
+        _require_module("autoflake", "auto-formatting")
+        _run(
+            [
+                sys.executable,
+                "-m",
+                "autoflake",
+                "--in-place",
+                "--recursive",
+                *AUTOFLAKE_FLAGS,
+                *STYLE_TARGETS,
+            ]
+        )
         _require_module("black", "formatting")
-        _run([sys.executable, "-m", "black", *FORMAT_TARGETS])
+        _run([sys.executable, "-m", "black", *STYLE_TARGETS])
+
+    if not skip_lint:
+        _require_module("flake8", "linting")
+        _run([sys.executable, "-m", "flake8", *STYLE_TARGETS])
+
+    if not skip_typecheck:
+        _require_module("mypy", "type checking")
+        _run([sys.executable, "-m", "mypy"])
 
     if not skip_tests:
         _require_module("pytest", "testing")
@@ -98,6 +124,16 @@ def main(argv: list[str] | None = None) -> int:
         help="Skip auto-formatting before building.",
     )
     parser.add_argument(
+        "--skip-lint",
+        action="store_true",
+        help="Skip flake8 before building.",
+    )
+    parser.add_argument(
+        "--skip-typecheck",
+        action="store_true",
+        help="Skip mypy before building.",
+    )
+    parser.add_argument(
         "--skip-tests",
         action="store_true",
         help="Skip tests before building.",
@@ -108,6 +144,8 @@ def main(argv: list[str] | None = None) -> int:
         run_release(
             dist_dir=Path(args.dist_dir).resolve(),
             skip_format=bool(args.skip_format),
+            skip_lint=bool(args.skip_lint),
+            skip_typecheck=bool(args.skip_typecheck),
             skip_tests=bool(args.skip_tests),
         )
         return 0

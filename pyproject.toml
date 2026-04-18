@@ -18,6 +18,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
+    "autoflake>=2.3",
     "pytest>=8.0",
     "black>=24.0",
     "mypy>=1.8",
@@ -38,3 +39,7 @@ include = ["trade_assist", "trade_assist.*"]
 
 [tool.setuptools.package-data]
 "trade_assist.schemas" = ["*.json"]
+
+[tool.black]
+line-length = 88
+target-version = ["py310"]

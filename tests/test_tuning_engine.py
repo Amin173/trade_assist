@@ -170,8 +170,8 @@ def test_tune_policy_parallel_workers_runs_trials(ohlcv_factory):
             },
         },
         objective_cfg={},
-        progress_callback=lambda completed_count, total_trials, trial: progress_calls.append(
-            (completed_count, total_trials, trial.trial_id)
+        progress_callback=lambda completed_count, total_trials, trial: (
+            progress_calls.append((completed_count, total_trials, trial.trial_id))
         ),
     )
 

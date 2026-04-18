@@ -558,24 +558,51 @@ def _make_tuning_run_id() -> str:
 
 def _tuning_summary_metric_explanations() -> dict[str, str]:
     return {
-        "status": "Whether the tuning run completed normally or was aborted/interrupted.",
+        "status": (
+            "Whether the tuning run completed normally or was aborted/interrupted."
+        ),
         "trial_count": "Number of parameter combinations evaluated during tuning.",
         "target_trial_count": "Target number of trials requested in the config.",
         "window_count": "Number of walk-forward validation windows used per trial.",
-        "best_trial_id": "Identifier of the highest-ranked trial after scoring and feasibility checks.",
-        "best_score": "Composite tuning objective score. Higher is better; infeasible windows incur a large penalty.",
-        "best_mean_cagr_pct": "Average annualized return across the validation windows for the best trial.",
-        "best_mean_max_drawdown_pct": "Average worst peak-to-trough drawdown across validation windows for the best trial.",
-        "best_mean_sharpe": "Average Sharpe ratio across validation windows for the best trial.",
-        "best_mean_trade_count": "Average number of executed trades per validation window for the best trial.",
+        "best_trial_id": (
+            "Identifier of the highest-ranked trial after scoring and feasibility "
+            "checks."
+        ),
+        "best_score": (
+            "Composite tuning objective score. Higher is better; infeasible "
+            "windows incur a large penalty."
+        ),
+        "best_mean_cagr_pct": (
+            "Average annualized return across the validation windows for the "
+            "best trial."
+        ),
+        "best_mean_max_drawdown_pct": (
+            "Average worst peak-to-trough drawdown across validation windows "
+            "for the best trial."
+        ),
+        "best_mean_sharpe": (
+            "Average Sharpe ratio across validation windows for the best trial."
+        ),
+        "best_mean_trade_count": (
+            "Average number of executed trades per validation window for the "
+            "best trial."
+        ),
         "run_log_path": "Cache log with per-trial events for this tuning run.",
-        "final_test_stats": "Optional out-of-sample metrics on the configured final test range.",
+        "final_test_stats": (
+            "Optional out-of-sample metrics on the configured final test range."
+        ),
         "final_test_stats.cagr_pct": "Annualized return over the final test period.",
-        "final_test_stats.max_drawdown_pct": "Worst peak-to-trough drawdown during the final test period.",
-        "final_test_stats.annualized_vol_pct": "Annualized volatility during the final test period.",
+        "final_test_stats.max_drawdown_pct": (
+            "Worst peak-to-trough drawdown during the final test period."
+        ),
+        "final_test_stats.annualized_vol_pct": (
+            "Annualized volatility during the final test period."
+        ),
         "final_test_stats.sharpe": "Sharpe ratio during the final test period.",
         "final_test_stats.sortino": "Sortino ratio during the final test period.",
-        "final_test_stats.total_return_pct": "Total percentage return over the final test period.",
+        "final_test_stats.total_return_pct": (
+            "Total percentage return over the final test period."
+        ),
     }
 
 
@@ -952,6 +979,9 @@ def tune_from_config(config_path: str) -> int:
                 trial=trial,
             ),
         )
+        criteria_preview = _format_progress_failed_criteria_preview(
+            trial.failed_criteria
+        )
         print(
             (
                 f"{completed_count:>{total_width}}/{total_trials} "
@@ -961,7 +991,7 @@ def tune_from_config(config_path: str) -> int:
                 f"mdd={trial.mean_max_drawdown_pct:>6.2f}% "
                 f"tr={trial.mean_trade_count:>5.1f} "
                 f"fail={trial.failed_window_count}/{trial.window_count} "
-                f"crit={_format_progress_failed_criteria_preview(trial.failed_criteria)} "
+                f"crit={criteria_preview} "
                 f"time={_format_clock_duration(elapsed)}/{eta_text}"
             ),
             flush=True,

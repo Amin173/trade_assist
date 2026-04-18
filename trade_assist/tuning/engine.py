@@ -602,7 +602,7 @@ def tune_policy(
                 trials.append(trial)
                 if progress_callback is not None:
                     progress_callback(completed_count, total_trials, trial)
-        except KeyboardInterrupt as exc:
+        except KeyboardInterrupt:
             raise TuningInterrupted(
                 partial_trials=trials,
                 total_trials=total_trials,
@@ -638,7 +638,7 @@ def tune_policy(
                     completed_count += 1
                     if progress_callback is not None:
                         progress_callback(completed_count, total_trials, trial)
-            except KeyboardInterrupt as exc:
+            except KeyboardInterrupt:
                 interrupted = True
                 for future in future_to_trial_id:
                     future.cancel()
@@ -677,7 +677,7 @@ def tune_policy(
                     completed_count += 1
                     if progress_callback is not None:
                         progress_callback(completed_count, total_trials, trial)
-            except KeyboardInterrupt as exc:
+            except KeyboardInterrupt:
                 interrupted = True
                 for future in future_to_trial_id:
                     future.cancel()
