@@ -1,0 +1,147 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "trade_assist tune config",
+  "type": "object",
+  "required": ["data", "portfolio", "tuning"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {"type": "string"},
+    "data": {
+      "type": "object",
+      "required": ["tickers"],
+      "additionalProperties": false,
+      "properties": {
+        "tickers": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "index_ticker": {"type": "string", "default": "SPY"},
+        "regime_tickers": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1}
+        },
+        "period": {"type": "string", "default": "5y"},
+        "interval": {"type": "string", "default": "1d"},
+        "use_cache": {"type": "boolean", "default": false},
+        "cache_dir": {"type": "string", "default": ".cache/market_data"},
+        "cache_ttl_hours": {
+          "oneOf": [
+            {"type": "number", "exclusiveMinimum": 0},
+            {"type": "null"}
+          ],
+          "default": 24
+        },
+        "force_refresh": {"type": "boolean", "default": false}
+      }
+    },
+    "policy_type": {"type": "string", "default": "v1"},
+    "policy_path": {"type": "string"},
+    "policy": {"type": "object"},
+    "portfolio": {
+      "type": "object",
+      "required": ["cash"],
+      "additionalProperties": false,
+      "properties": {
+        "cash": {"type": "number", "minimum": 0},
+        "positions": {
+          "type": "object",
+          "additionalProperties": {"type": "number"}
+        }
+      }
+    },
+    "split": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "warmup_days": {"type": "integer", "minimum": 0},
+        "walk_forward": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "train_days": {"type": "integer", "minimum": 1},
+            "validation_days": {"type": "integer", "minimum": 1},
+            "step_days": {"type": "integer", "minimum": 1},
+            "min_windows": {"type": "integer", "minimum": 1}
+          }
+        },
+        "final_test": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "start": {"type": "string", "format": "date"},
+            "end": {"type": "string", "format": "date"}
+          }
+        }
+      }
+    },
+    "tuning": {
+      "type": "object",
+      "required": ["search_space"],
+      "additionalProperties": false,
+      "properties": {
+        "method": {"type": "string", "enum": ["random", "grid"]},
+        "trials": {"type": "integer", "minimum": 1},
+        "workers": {
+          "oneOf": [
+            {"type": "integer", "minimum": 1},
+            {"type": "null"}
+          ],
+          "default": 1
+        },
+        "seed": {"type": "integer"},
+        "max_grid_points": {"type": "integer", "minimum": 1},
+        "search_space": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": {"$ref": "#/$defs/search_spec"}
+        }
+      }
+    },
+    "objective": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "weights": {
+          "type": "object",
+          "additionalProperties": {"type": "number"}
+        },
+        "constraints": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "min_trade_count": {"type": "integer", "minimum": 0},
+            "max_drawdown_floor_pct": {"type": "number"}
+          }
+        }
+      }
+    },
+    "output": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "dir": {"type": "string"},
+        "save_trials_csv": {"type": "boolean"},
+        "save_best_policy_json": {"type": "boolean"},
+        "save_summary_json": {"type": "boolean"},
+        "print_top_k": {"type": "integer", "minimum": 1}
+      }
+    }
+  },
+  "$defs": {
+    "search_spec": {
+      "type": "object",
+      "required": ["type"],
+      "additionalProperties": true,
+      "properties": {
+        "type": {"type": "string", "enum": ["float", "int", "bool", "categorical"]},
+        "low": {"type": "number"},
+        "high": {"type": "number"},
+        "step": {"type": "number"},
+        "num": {"type": "integer", "minimum": 1},
+        "log": {"type": "boolean"},
+        "values": {"type": "array"}
+      }
+    }
+  }
+}

@@ -35,8 +35,9 @@
         "force_refresh": {"type": "boolean", "default": false}
       }
     },
+    "policy_type": {"type": "string", "default": "v1"},
     "policy_path": {"type": "string"},
-    "policy": {"$ref": "#/$defs/policy"},
+    "policy": {"type": "object"},
     "portfolio": {
       "type": "object",
       "required": ["cash"],

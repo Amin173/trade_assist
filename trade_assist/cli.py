@@ -1,17 +1,29 @@
 from __future__ import annotations
 
 import argparse
+from datetime import datetime, timezone
 import json
+import math
 from pathlib import Path
+import sys
+import time
 from typing import Any
 
 import numpy as np
 import pandas as pd
 
-from .config_validation import validate_config, validate_policy
-from .policy.constants import ANNUAL_TRADING_DAYS, RISK_ON_FLAG
-from .policy import PolicyConfig, run_policy
-from .policy.recommendations import recommend_positions
+from .config_validation import (
+    ConfigValidationError,
+    PolicyValidationError,
+    validate_config,
+    validate_policy,
+)
+from .policy import (
+    PolicyAdapter,
+    compute_performance_stats,
+    get_policy_adapter,
+)
+from .policy.constants import RISK_ON_FLAG
 from .ta.constants import (
     COL_CLOSE,
     DEFAULT_CACHE_DIR,
@@ -21,6 +33,7 @@ from .ta.constants import (
     DEFAULT_PERIOD,
 )
 from .ta.data import fetch_ohlcv_map
+from .tuning import TuningInterrupted, tune_policy
 
 KEY_DATA = "data"
 KEY_TICKERS = "tickers"
@@ -28,9 +41,13 @@ KEY_PORTFOLIO = "portfolio"
 KEY_CASH = "cash"
 KEY_POSITIONS = "positions"
 KEY_POLICY = "policy"
+KEY_POLICY_TYPE = "policy_type"
 KEY_POLICY_PATH = "policy_path"
 KEY_OUTPUT = "output"
 KEY_RECOMMENDATION = "recommendation"
+KEY_SPLIT = "split"
+KEY_TUNING = "tuning"
+KEY_OBJECTIVE = "objective"
 
 KEY_INDEX_TICKER = "index_ticker"
 KEY_REGIME_TICKERS = "regime_tickers"
@@ -41,9 +58,9 @@ KEY_CACHE_DIR = "cache_dir"
 KEY_CACHE_TTL_HOURS = "cache_ttl_hours"
 KEY_FORCE_REFRESH = "force_refresh"
 
+DEFAULT_POLICY_TYPE = "v1"
 DEFAULT_MIN_TRADE_SHARES = 1.0
 DEFAULT_REBALANCE_LOG_TAIL = 20
-DEFAULT_DAYS_PER_YEAR = 365.25
 INVESTED_EPSILON = 1e-9
 PLOT_DPI = 140
 PERCENT_SCALE = 100.0
@@ -51,6 +68,8 @@ TRADE_MARKER_SIZE = 90
 TRADE_MARKER_ALPHA = 0.95
 TRADE_MARKER_EDGE_WIDTH = 0.8
 TRADE_MARKER_OFFSET_RATIO = 0.01
+DEFAULT_TUNE_OUTPUT_DIR = "outputs/tuning"
+DEFAULT_TUNE_PRINT_TOP_K = 10
 
 LABEL_RISK_ON = "RISK_ON"
 LABEL_RISK_OFF = "RISK_OFF"
@@ -160,7 +179,16 @@ def _load_market_data(
     return ohlcv_map, regime_close
 
 
-def _resolve_policy_config(payload: dict[str, Any], config_path: Path) -> PolicyConfig:
+def _resolve_policy_adapter(payload: dict[str, Any]) -> PolicyAdapter:
+    policy_type = str(payload.get(KEY_POLICY_TYPE, DEFAULT_POLICY_TYPE))
+    return get_policy_adapter(policy_type)
+
+
+def _resolve_policy_payload(
+    payload: dict[str, Any],
+    config_path: Path,
+    adapter: PolicyAdapter,
+) -> dict[str, Any]:
     policy_path = payload.get(KEY_POLICY_PATH)
     if policy_path is not None:
         path = Path(str(policy_path))
@@ -173,17 +201,26 @@ def _resolve_policy_config(payload: dict[str, Any], config_path: Path) -> Policy
             policy_payload = json.load(f)
         if not isinstance(policy_payload, dict):
             raise ValueError(f"policy_path must point to a JSON object: {path}")
-        validate_policy(policy_payload)
-        return PolicyConfig.from_dict(policy_payload)
+        validate_policy(policy_payload, policy_type=adapter.policy_type)
+        return policy_payload
 
     if KEY_POLICY in payload:
         policy_payload = payload.get(KEY_POLICY, {})
         if not isinstance(policy_payload, dict):
             raise ValueError("config.policy must be a JSON object")
-        validate_policy(policy_payload)
-        return PolicyConfig.from_dict(policy_payload)
+        validate_policy(policy_payload, policy_type=adapter.policy_type)
+        return policy_payload
 
-    return PolicyConfig()
+    return adapter.default_policy_payload()
+
+
+def _resolve_policy_config(
+    payload: dict[str, Any],
+    config_path: Path,
+    adapter: PolicyAdapter,
+) -> Any:
+    policy_payload = _resolve_policy_payload(payload, config_path, adapter)
+    return adapter.build_policy_config(policy_payload)
 
 
 def _format_recommendations(rows: list) -> pd.DataFrame:
@@ -203,67 +240,7 @@ def _format_recommendations(rows: list) -> pd.DataFrame:
 
 
 def _compute_performance_stats(equity_curve: pd.Series) -> dict[str, float]:
-    eq = equity_curve.dropna()
-    if len(eq) < 2:
-        return {
-            "total_return_pct": 0.0,
-            "cagr_pct": 0.0,
-            "annualized_vol_pct": 0.0,
-            "sharpe": 0.0,
-            "sortino": 0.0,
-            "max_drawdown_pct": 0.0,
-            "calmar": 0.0,
-            "win_rate_pct": 0.0,
-            "best_day_pct": 0.0,
-            "worst_day_pct": 0.0,
-        }
-
-    returns = eq.pct_change().dropna()
-    if len(returns) == 0:
-        returns = pd.Series([0.0], index=eq.index[:1])
-
-    total_return = float(eq.iloc[-1] / eq.iloc[0] - 1.0)
-    duration_days = max((eq.index[-1] - eq.index[0]).days, 1)
-    years = duration_days / DEFAULT_DAYS_PER_YEAR
-    cagr = (
-        float((eq.iloc[-1] / eq.iloc[0]) ** (1.0 / years) - 1.0)
-        if eq.iloc[0] > 0.0
-        else 0.0
-    )
-
-    annualized_vol = float(returns.std() * np.sqrt(ANNUAL_TRADING_DAYS))
-    annualized_mean = float(returns.mean() * ANNUAL_TRADING_DAYS)
-    sharpe = float(annualized_mean / annualized_vol) if annualized_vol > 0.0 else 0.0
-
-    downside = returns[returns < 0]
-    downside_vol = (
-        float(downside.std() * np.sqrt(ANNUAL_TRADING_DAYS))
-        if len(downside) > 1
-        else 0.0
-    )
-    sortino = float(annualized_mean / downside_vol) if downside_vol > 0.0 else 0.0
-
-    running_max = eq.cummax()
-    drawdown = eq / running_max - 1.0
-    max_drawdown = float(drawdown.min())
-    calmar = float(cagr / abs(max_drawdown)) if max_drawdown < 0.0 else 0.0
-
-    win_rate = float((returns > 0).mean())
-    best_day = float(returns.max())
-    worst_day = float(returns.min())
-
-    return {
-        "total_return_pct": total_return * PERCENT_SCALE,
-        "cagr_pct": cagr * PERCENT_SCALE,
-        "annualized_vol_pct": annualized_vol * PERCENT_SCALE,
-        "sharpe": sharpe,
-        "sortino": sortino,
-        "max_drawdown_pct": max_drawdown * PERCENT_SCALE,
-        "calmar": calmar,
-        "win_rate_pct": win_rate * PERCENT_SCALE,
-        "best_day_pct": best_day * PERCENT_SCALE,
-        "worst_day_pct": worst_day * PERCENT_SCALE,
-    }
+    return compute_performance_stats(equity_curve)
 
 
 def _print_performance_stats(stats: dict[str, float]) -> None:
@@ -497,7 +474,8 @@ def backtest_from_config(config_path: str) -> int:
     validate_config(payload, command="backtest")
     _require_keys(payload, [KEY_PORTFOLIO], scope="config")
 
-    policy_cfg = _resolve_policy_config(payload, cfg_path)
+    adapter = _resolve_policy_adapter(payload)
+    policy_cfg = _resolve_policy_config(payload, cfg_path, adapter)
     portfolio_cfg = payload[KEY_PORTFOLIO]
     _require_keys(portfolio_cfg, [KEY_CASH], scope="portfolio")
     initial_cash = float(portfolio_cfg[KEY_CASH])
@@ -505,10 +483,10 @@ def backtest_from_config(config_path: str) -> int:
     output_cfg = payload.get(KEY_OUTPUT, {})
 
     ohlcv_map, index_close = _load_market_data(payload, cfg_path)
-    backtest = run_policy(
+    backtest = adapter.run_backtest(
         ohlcv_map=ohlcv_map,
         index_close=index_close,
-        config=policy_cfg,
+        policy_config=policy_cfg,
         initial_cash=initial_cash,
         initial_positions=initial_positions,
     )
@@ -526,7 +504,8 @@ def recommend_from_config(config_path: str) -> int:
     validate_config(payload, command="recommend")
     _require_keys(payload, [KEY_PORTFOLIO], scope="config")
 
-    policy_cfg = _resolve_policy_config(payload, cfg_path)
+    adapter = _resolve_policy_adapter(payload)
+    policy_cfg = _resolve_policy_config(payload, cfg_path, adapter)
     portfolio_cfg = payload[KEY_PORTFOLIO]
     rec_cfg = payload.get(KEY_RECOMMENDATION, {})
 
@@ -536,12 +515,12 @@ def recommend_from_config(config_path: str) -> int:
     min_trade_shares = float(rec_cfg.get("min_trade_shares", DEFAULT_MIN_TRADE_SHARES))
 
     ohlcv_map, index_close = _load_market_data(payload, cfg_path)
-    recommendations, target_weights, risk_on = recommend_positions(
+    recommendations, target_weights, risk_on = adapter.recommend(
         ohlcv_map=ohlcv_map,
         index_close=index_close,
         current_positions=current_positions,
         current_cash=current_cash,
-        config=policy_cfg,
+        policy_config=policy_cfg,
         min_trade_shares=min_trade_shares,
     )
 
@@ -555,6 +534,495 @@ def recommend_from_config(config_path: str) -> int:
     rec_df = _format_recommendations(recommendations)
     print(rec_df.to_string(index=False))
     return 0
+
+
+def _save_json(path: Path, payload: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+
+def _append_jsonl(path: Path, payload: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(payload, separators=(",", ":")))
+        f.write("\n")
+
+
+def _utc_now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _make_tuning_run_id() -> str:
+    return datetime.now(timezone.utc).strftime("tune_%Y%m%dT%H%M%S_%fZ")
+
+
+def _tuning_summary_metric_explanations() -> dict[str, str]:
+    return {
+        "status": "Whether the tuning run completed normally or was aborted/interrupted.",
+        "trial_count": "Number of parameter combinations evaluated during tuning.",
+        "target_trial_count": "Target number of trials requested in the config.",
+        "window_count": "Number of walk-forward validation windows used per trial.",
+        "best_trial_id": "Identifier of the highest-ranked trial after scoring and feasibility checks.",
+        "best_score": "Composite tuning objective score. Higher is better; infeasible windows incur a large penalty.",
+        "best_mean_cagr_pct": "Average annualized return across the validation windows for the best trial.",
+        "best_mean_max_drawdown_pct": "Average worst peak-to-trough drawdown across validation windows for the best trial.",
+        "best_mean_sharpe": "Average Sharpe ratio across validation windows for the best trial.",
+        "best_mean_trade_count": "Average number of executed trades per validation window for the best trial.",
+        "run_log_path": "Cache log with per-trial events for this tuning run.",
+        "final_test_stats": "Optional out-of-sample metrics on the configured final test range.",
+        "final_test_stats.cagr_pct": "Annualized return over the final test period.",
+        "final_test_stats.max_drawdown_pct": "Worst peak-to-trough drawdown during the final test period.",
+        "final_test_stats.annualized_vol_pct": "Annualized volatility during the final test period.",
+        "final_test_stats.sharpe": "Sharpe ratio during the final test period.",
+        "final_test_stats.sortino": "Sortino ratio during the final test period.",
+        "final_test_stats.total_return_pct": "Total percentage return over the final test period.",
+    }
+
+
+def _build_tuning_summary_payload(
+    status: str,
+    policy_type: str,
+    trial_count: int,
+    target_trial_count: int,
+    window_count: int,
+    best_trial: Any | None,
+    final_test_stats: dict[str, float] | None,
+    run_log_path: str | None = None,
+) -> dict[str, Any]:
+    def _trial_value(trial: Any, key: str) -> Any:
+        if isinstance(trial, dict):
+            return trial.get(key)
+        return getattr(trial, key)
+
+    summary = {
+        "status": status,
+        "policy_type": policy_type,
+        "trial_count": int(trial_count),
+        "target_trial_count": int(target_trial_count),
+        "window_count": int(window_count),
+        "best_trial_id": None,
+        "best_score": None,
+        "best_mean_cagr_pct": None,
+        "best_mean_max_drawdown_pct": None,
+        "best_mean_sharpe": None,
+        "best_mean_trade_count": None,
+        "final_test_stats": final_test_stats,
+        "run_log_path": run_log_path,
+        "metric_explanations": _tuning_summary_metric_explanations(),
+    }
+    if best_trial is not None:
+        summary.update(
+            {
+                "best_trial_id": int(_trial_value(best_trial, "trial_id")),
+                "best_score": float(_trial_value(best_trial, "score")),
+                "best_mean_cagr_pct": float(_trial_value(best_trial, "mean_cagr_pct")),
+                "best_mean_max_drawdown_pct": float(
+                    _trial_value(best_trial, "mean_max_drawdown_pct")
+                ),
+                "best_mean_sharpe": float(_trial_value(best_trial, "mean_sharpe")),
+                "best_mean_trade_count": float(
+                    _trial_value(best_trial, "mean_trade_count")
+                ),
+            }
+        )
+    return summary
+
+
+def _resolve_tune_output_dir(output_cfg: dict[str, Any], cfg_path: Path) -> Path:
+    output_dir = Path(str(output_cfg.get("dir", DEFAULT_TUNE_OUTPUT_DIR)))
+    if not output_dir.is_absolute():
+        output_dir = (cfg_path.parent / output_dir).resolve()
+    return output_dir
+
+
+def _serialize_trial_for_cache(
+    completed_count: int,
+    total_trials: int,
+    elapsed_seconds: float,
+    trial: Any,
+) -> dict[str, Any]:
+    return {
+        "event": "trial_completed",
+        "logged_at": _utc_now_iso(),
+        "completed_count": int(completed_count),
+        "total_trials": int(total_trials),
+        "elapsed_seconds": float(elapsed_seconds),
+        "trial": {
+            **trial.to_row(),
+            "failed_windows": list(trial.failed_windows),
+            "failed_criteria": list(trial.failed_criteria),
+            "policy_payload": trial.policy_payload,
+        },
+    }
+
+
+def _read_tuning_run_log(path: Path) -> dict[str, Any]:
+    events: list[dict[str, Any]] = []
+    if path.exists():
+        with path.open("r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                events.append(json.loads(line))
+    start_event = next(
+        (event for event in events if event.get("event") == "run_context"), None
+    )
+    finish_event = next(
+        (event for event in reversed(events) if event.get("event") == "finish"),
+        None,
+    )
+    trial_events = [
+        event for event in events if event.get("event") == "trial_completed"
+    ]
+    return {
+        "events": events,
+        "start": start_event,
+        "finish": finish_event,
+        "trial_events": trial_events,
+    }
+
+
+def _trials_dataframe_from_cache_log(log_data: dict[str, Any]) -> pd.DataFrame:
+    rows = [event["trial"] for event in log_data["trial_events"]]
+    if not rows:
+        return pd.DataFrame(
+            columns=[
+                "trial_id",
+                "score",
+                "feasible",
+                "window_count",
+                "failed_window_count",
+                "failed_windows",
+                "failed_criteria",
+                "mean_cagr_pct",
+                "mean_max_drawdown_pct",
+                "mean_annualized_vol_pct",
+                "mean_sharpe",
+                "mean_sortino",
+                "mean_trade_count",
+                "overrides",
+                "policy_payload",
+            ]
+        )
+    return pd.DataFrame(rows).sort_values(["score", "trial_id"], ascending=[False, True])
+
+
+def _best_trial_record_from_cache(log_data: dict[str, Any]) -> dict[str, Any] | None:
+    trials_df = _trials_dataframe_from_cache_log(log_data)
+    if trials_df.empty:
+        return None
+    best_trial_id = int(trials_df.iloc[0]["trial_id"])
+    for event in log_data["trial_events"]:
+        trial = event["trial"]
+        if int(trial["trial_id"]) == best_trial_id:
+            return trial
+    return None
+
+
+def _format_duration(seconds: float) -> str:
+    total_seconds = max(0, int(round(seconds)))
+    minutes, secs = divmod(total_seconds, 60)
+    hours, minutes = divmod(minutes, 60)
+    if hours > 0:
+        return f"{hours}h {minutes}m {secs}s"
+    if minutes > 0:
+        return f"{minutes}m {secs}s"
+    return f"{secs}s"
+
+
+def _format_clock_duration(seconds: float) -> str:
+    total_seconds = max(0, int(round(seconds)))
+    minutes, secs = divmod(total_seconds, 60)
+    hours, minutes = divmod(minutes, 60)
+    if hours > 0:
+        return f"{hours}:{minutes:02d}:{secs:02d}"
+    return f"{minutes:02d}:{secs:02d}"
+
+
+def _format_failed_criteria_preview(
+    failed_criteria: tuple[str, ...] | list[str], max_items: int = 2
+) -> str:
+    items = list(failed_criteria)
+    if not items:
+        return "-"
+    if len(items) <= max_items:
+        return ", ".join(items)
+    shown = ", ".join(items[:max_items])
+    remaining = len(items) - max_items
+    return f"{shown}, +{remaining} more"
+
+
+def _format_progress_failed_criteria_preview(
+    failed_criteria: tuple[str, ...] | list[str], max_items: int = 1
+) -> str:
+    preview = _format_failed_criteria_preview(failed_criteria, max_items=max_items)
+    return preview.replace("(observed ", "(").replace("))", ")")
+
+
+def _print_tuning_cache_summary(
+    log_data: dict[str, Any], top_k: int, run_log_path: Path
+) -> None:
+    trials_df = _trials_dataframe_from_cache_log(log_data)
+    start_event = log_data["start"] or {}
+    finish_event = log_data["finish"] or {}
+    target_trials = int(
+        finish_event.get(
+            "total_trials",
+            start_event.get("target_trial_count", len(trials_df)),
+        )
+    )
+    status = str(finish_event.get("status", "completed"))
+    window_count = int(start_event.get("window_count", 0))
+
+    print("\nRun summary:")
+    print(f"- status: {status}")
+    print(f"- completed_trials: {len(trials_df)}/{target_trials}")
+    if window_count > 0:
+        print(f"- validation_windows: {window_count}")
+    print(f"- run_log: {run_log_path}")
+
+    if trials_df.empty:
+        print("No completed trials were logged before the run stopped.")
+        return
+
+    best = trials_df.iloc[0]
+    print("Best logged trial:")
+    print(
+        f"- score: {float(best['score']):.4f} "
+        "(composite objective; higher is better)"
+    )
+    print(
+        f"- mean_cagr_pct: {float(best['mean_cagr_pct']):.2f}% "
+        "(average annualized return across validation windows)"
+    )
+    print(
+        f"- mean_max_drawdown_pct: {float(best['mean_max_drawdown_pct']):.2f}% "
+        "(average worst peak-to-trough drawdown across validation windows)"
+    )
+    print(
+        f"- mean_sharpe: {float(best['mean_sharpe']):.3f} "
+        "(average Sharpe ratio across validation windows)"
+    )
+    print(
+        f"- mean_trade_count: {float(best['mean_trade_count']):.2f} "
+        "(average executed trades per validation window)"
+    )
+    print(
+        f"- failed_window_count: {int(best['failed_window_count'])}/"
+        f"{int(best['window_count'])}"
+    )
+    print(f"- failed_criteria: {best['failed_criteria'] or '-'}")
+
+    display_cols = [
+        "trial_id",
+        "score",
+        "mean_cagr_pct",
+        "mean_max_drawdown_pct",
+        "mean_sharpe",
+        "mean_trade_count",
+        "failed_window_count",
+        "failed_criteria",
+        "feasible",
+    ]
+    print("\nTop logged trials:")
+    print(trials_df.head(top_k)[display_cols].to_string(index=False))
+
+
+def _write_tuning_outputs_from_cache(
+    log_data: dict[str, Any],
+    output_dir: Path,
+    output_cfg: dict[str, Any],
+    policy_type: str,
+    run_log_path: Path,
+) -> None:
+    trials_df = _trials_dataframe_from_cache_log(log_data)
+    start_event = log_data["start"] or {}
+    finish_event = log_data["finish"] or {}
+    best_trial = _best_trial_record_from_cache(log_data)
+    summary = _build_tuning_summary_payload(
+        status=str(finish_event.get("status", "completed")),
+        policy_type=policy_type,
+        trial_count=len(trials_df),
+        target_trial_count=int(
+            finish_event.get(
+                "total_trials", start_event.get("target_trial_count", len(trials_df))
+            )
+        ),
+        window_count=int(start_event.get("window_count", 0)),
+        best_trial=best_trial,
+        final_test_stats=finish_event.get("final_test_stats"),
+        run_log_path=str(run_log_path),
+    )
+
+    if bool(output_cfg.get("save_trials_csv", True)):
+        output_dir.mkdir(parents=True, exist_ok=True)
+        trials_path = output_dir / "tuning_trials.csv"
+        trials_df.to_csv(trials_path, index=False)
+        print(f"Saved tuning trials CSV: {trials_path}")
+
+    if bool(output_cfg.get("save_best_policy_json", True)) and best_trial is not None:
+        output_dir.mkdir(parents=True, exist_ok=True)
+        best_policy_path = output_dir / "best_policy.json"
+        _save_json(best_policy_path, best_trial["policy_payload"])
+        print(f"Saved best policy JSON: {best_policy_path}")
+
+    if bool(output_cfg.get("save_summary_json", True)):
+        output_dir.mkdir(parents=True, exist_ok=True)
+        summary_path = output_dir / "tuning_summary.json"
+        _save_json(summary_path, summary)
+        print(f"Saved tuning summary JSON: {summary_path}")
+
+
+def tune_from_config(config_path: str) -> int:
+    payload, cfg_path = _load_config(config_path)
+    validate_config(payload, command="tune")
+    _require_keys(payload, [KEY_PORTFOLIO, KEY_TUNING], scope="config")
+
+    adapter = _resolve_policy_adapter(payload)
+    base_policy_payload = _resolve_policy_payload(payload, cfg_path, adapter)
+
+    portfolio_cfg = payload[KEY_PORTFOLIO]
+    _require_keys(portfolio_cfg, [KEY_CASH], scope="portfolio")
+    initial_cash = float(portfolio_cfg[KEY_CASH])
+    initial_positions = portfolio_cfg.get(KEY_POSITIONS, {})
+
+    split_cfg = payload.get(KEY_SPLIT, {}) or {}
+    tuning_cfg = payload[KEY_TUNING]
+    objective_cfg = payload.get(KEY_OBJECTIVE, {}) or {}
+    output_cfg = payload.get(KEY_OUTPUT, {}) or {}
+    output_dir = _resolve_tune_output_dir(output_cfg, cfg_path)
+    top_k = int(output_cfg.get("print_top_k", DEFAULT_TUNE_PRINT_TOP_K))
+    run_log_path = (
+        output_dir / ".cache" / "tuning_runs" / f"{_make_tuning_run_id()}.jsonl"
+    )
+
+    ohlcv_map, index_close = _load_market_data(payload, cfg_path)
+    from .tuning.engine import _build_walk_forward_windows, _iter_overrides
+
+    window_count = len(
+        _build_walk_forward_windows(
+            next(iter(ohlcv_map.values())).index,
+            split_cfg,
+        )
+    )
+    target_trial_count = len(_iter_overrides(tuning_cfg.get("search_space", {}), tuning_cfg))
+    _append_jsonl(
+        run_log_path,
+        {
+            "event": "run_context",
+            "logged_at": _utc_now_iso(),
+            "config_path": str(cfg_path.resolve()),
+            "policy_type": adapter.policy_type,
+            "target_trial_count": int(target_trial_count),
+            "window_count": int(window_count),
+            "workers": tuning_cfg.get("workers", 1),
+        },
+    )
+
+    print(
+        "Running tuning. Detailed trial logs are being written to cache.",
+        flush=True,
+    )
+    tune_start = time.perf_counter()
+
+    def _report_trial_progress(
+        completed_count: int, total_trials: int, trial: Any
+    ) -> None:
+        total_width = len(str(total_trials))
+        elapsed = time.perf_counter() - tune_start
+        avg_seconds = elapsed / completed_count if completed_count > 0 else 0.0
+        remaining_trials = max(total_trials - completed_count, 0)
+        eta_seconds = avg_seconds * remaining_trials
+        eta_text = (
+            _format_clock_duration(eta_seconds)
+            if math.isfinite(eta_seconds)
+            else "unknown"
+        )
+        _append_jsonl(
+            run_log_path,
+            _serialize_trial_for_cache(
+                completed_count=completed_count,
+                total_trials=total_trials,
+                elapsed_seconds=elapsed,
+                trial=trial,
+            ),
+        )
+        print(
+            (
+                f"{completed_count:>{total_width}}/{total_trials} "
+                f"t{trial.trial_id:>{total_width}} "
+                f"s={trial.score:>10.2f} "
+                f"cagr={trial.mean_cagr_pct:>6.2f}% "
+                f"mdd={trial.mean_max_drawdown_pct:>6.2f}% "
+                f"tr={trial.mean_trade_count:>5.1f} "
+                f"fail={trial.failed_window_count}/{trial.window_count} "
+                f"crit={_format_progress_failed_criteria_preview(trial.failed_criteria)} "
+                f"time={_format_clock_duration(elapsed)}/{eta_text}"
+            ),
+            flush=True,
+        )
+
+    status = "completed"
+    final_test_stats: dict[str, float] | None = None
+    return_code = 0
+    try:
+        result = tune_policy(
+            adapter=adapter,
+            ohlcv_map=ohlcv_map,
+            index_close=index_close,
+            initial_cash=initial_cash,
+            initial_positions=initial_positions,
+            base_policy_payload=base_policy_payload,
+            split_cfg=split_cfg,
+            tuning_cfg=tuning_cfg,
+            objective_cfg=objective_cfg,
+            progress_callback=_report_trial_progress,
+        )
+        final_test_stats = result.final_test_stats
+    except TuningInterrupted:
+        status = "aborted"
+        return_code = 130
+        print("\nTuning interrupted by user.", flush=True)
+    except KeyboardInterrupt:
+        status = "aborted"
+        return_code = 130
+        print("\nTuning interrupted by user.", flush=True)
+    finally:
+        elapsed = time.perf_counter() - tune_start
+        log_data = _read_tuning_run_log(run_log_path)
+        completed_trials = len(log_data["trial_events"])
+        total_trials = (
+            int(log_data["trial_events"][-1]["total_trials"])
+            if log_data["trial_events"]
+            else int(target_trial_count)
+        )
+        _append_jsonl(
+            run_log_path,
+            {
+                "event": "finish",
+                "logged_at": _utc_now_iso(),
+                "status": status,
+                "elapsed_seconds": float(elapsed),
+                "completed_trials": int(completed_trials),
+                "total_trials": int(total_trials),
+                "final_test_stats": final_test_stats,
+            },
+        )
+        log_data = _read_tuning_run_log(run_log_path)
+        _print_tuning_cache_summary(
+            log_data=log_data,
+            top_k=top_k,
+            run_log_path=run_log_path,
+        )
+        _write_tuning_outputs_from_cache(
+            log_data=log_data,
+            output_dir=output_dir,
+            output_cfg=output_cfg,
+            policy_type=adapter.policy_type,
+            run_log_path=run_log_path,
+        )
+    return return_code
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -575,6 +1043,13 @@ def build_parser() -> argparse.ArgumentParser:
         "--config", required=True, help="Path to recommendation JSON config file"
     )
 
+    tune_parser = sub.add_parser(
+        "tune", help="Tune policy parameters over historical data"
+    )
+    tune_parser.add_argument(
+        "--config", required=True, help="Path to tuning JSON config file"
+    )
+
     return parser
 
 
@@ -582,10 +1057,22 @@ def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
 
-    if args.command == "backtest":
-        return backtest_from_config(args.config)
-    if args.command == "recommend":
-        return recommend_from_config(args.config)
+    try:
+        if args.command == "backtest":
+            return backtest_from_config(args.config)
+        if args.command == "recommend":
+            return recommend_from_config(args.config)
+        if args.command == "tune":
+            return tune_from_config(args.config)
+    except ConfigValidationError as exc:
+        print(
+            f"Error: {exc} [file: {Path(args.config).resolve()}]",
+            file=sys.stderr,
+        )
+        return 2
+    except PolicyValidationError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 2
 
     parser.print_help()
     return 1

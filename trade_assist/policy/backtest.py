@@ -83,11 +83,10 @@ def _enforce_min_trade_shares(
         return trade_shares
 
     filtered = trade_shares.copy()
-    for ticker in filtered.index:
-        if exempt_tickers and ticker in exempt_tickers:
-            continue
-        if abs(float(filtered.loc[ticker])) < threshold:
-            filtered.loc[ticker] = 0.0
+    mask = filtered.abs() < threshold
+    if exempt_tickers:
+        mask &= ~filtered.index.isin(exempt_tickers)
+    filtered.loc[mask] = 0.0
     return filtered
 
 
@@ -102,6 +101,7 @@ def run_policy(
     tickers = list(ohlcv_map.keys())
     if not tickers:
         raise ValueError("ohlcv_map must include at least one ticker")
+    ticker_index = pd.Index(tickers, dtype=object)
 
     dates = ohlcv_map[tickers[0]].index
 
@@ -117,7 +117,7 @@ def run_policy(
 
     close_df = pd.concat(
         {ticker: ohlcv_map[ticker][COL_CLOSE] for ticker in tickers}, axis=1
-    )
+    ).reindex(columns=ticker_index)
     open_df = pd.concat(
         {
             ticker: (
@@ -128,7 +128,7 @@ def run_policy(
             for ticker in tickers
         },
         axis=1,
-    )
+    ).reindex(columns=ticker_index)
     volume_df = pd.concat(
         {
             ticker: (
@@ -139,24 +139,24 @@ def run_policy(
             for ticker in tickers
         },
         axis=1,
-    )
+    ).reindex(columns=ticker_index)
 
     ret_df = close_df.pct_change()
     next_fill_px = open_df.shift(-1)
     next_adv_dollars = volume_df.shift(-1) * next_fill_px
 
     cash = float(initial_cash)
-    holdings = pd.Series(0.0, index=tickers)
+    holdings = pd.Series(0.0, index=ticker_index)
     if initial_positions:
         for ticker, shares in initial_positions.items():
             if ticker in holdings.index:
                 holdings.loc[ticker] = float(shares)
-    last_trade_day = pd.Series(pd.Timestamp(START_DATE_SENTINEL), index=tickers)
-    entry_price = pd.Series(np.nan, index=tickers, dtype=float)
-    peak_since_entry = pd.Series(np.nan, index=tickers, dtype=float)
-    cooldown_until = pd.Series(pd.Timestamp("1900-01-01"), index=tickers)
+    last_trade_day = pd.Series(pd.Timestamp(START_DATE_SENTINEL), index=ticker_index)
+    entry_price = pd.Series(np.nan, index=ticker_index, dtype=float)
+    peak_since_entry = pd.Series(np.nan, index=ticker_index, dtype=float)
+    cooldown_until = pd.Series(pd.Timestamp("1900-01-01"), index=ticker_index)
 
-    first_prices = close_df.iloc[0].reindex(tickers)
+    first_prices = close_df.iloc[0]
     for ticker in tickers:
         if holdings.loc[ticker] > 0:
             px0 = first_prices.loc[ticker]
@@ -171,7 +171,7 @@ def run_policy(
     rebalance_set = set(rebalance_days)
 
     for day in dates[:-1]:
-        prices = close_df.loc[day].reindex(tickers)
+        prices = close_df.loc[day]
         position_values = (holdings * prices).fillna(0.0)
         equity = cash + float(position_values.sum())
         row: dict[str, float | pd.Timestamp] = {
@@ -289,7 +289,7 @@ def run_policy(
             if (day - last_trade_day[ticker]).days < cfg.min_hold_days:
                 target_shares.loc[ticker] = holdings.loc[ticker]
 
-        fill_px_all = next_fill_px.loc[day].reindex(tickers)
+        fill_px_all = next_fill_px.loc[day]
         tradeable_mask = (fill_px_all > 0.0) & fill_px_all.notna()
         target_shares.loc[~tradeable_mask] = holdings.loc[~tradeable_mask]
 
@@ -299,7 +299,7 @@ def run_policy(
             min_trade_shares=cfg.min_trade_shares,
             exempt_tickers=set(forced_exit_reasons.keys()),
         )
-        adv = next_adv_dollars.loc[day].reindex(tickers).fillna(0.0)
+        adv = next_adv_dollars.loc[day].fillna(0.0)
 
         trade_shares, liquidity_touched = _apply_liquidity_caps(
             trade_shares=trade_shares,
@@ -453,7 +453,7 @@ def run_policy(
         )
 
     final_day = dates[-1]
-    final_prices = close_df.loc[final_day].reindex(tickers)
+    final_prices = close_df.loc[final_day]
     final_position_values = (holdings * final_prices).fillna(0.0)
     final_equity = cash + float(final_position_values.sum())
     final_row: dict[str, float | pd.Timestamp] = {

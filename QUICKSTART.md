@@ -101,4 +101,14 @@ This compares your current portfolio with the model target and prints `BUY`, `SE
 
 Once commands run end-to-end, adjust `policy` values (rebalance frequency, max weight, risk caps) one change at a time.
 
+If you want automated search instead of manual edits:
+
+```bash
+cp config.tune.example.json config.tune.json
+trade-assist tune --config config.tune.json
+```
+
+This writes ranked trials and a best-policy JSON under the configured output directory.
+For faster searches on multi-core machines, set `tuning.workers` to a number like `4`, or `null` to auto-size to available CPUs.
+
 For full parameter definitions, see `CONFIG.md`.

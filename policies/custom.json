@@ -1,0 +1,27 @@
+{
+  "target_vol_risk_on": 0.25,
+  "gross_cap_risk_on": 1.0,
+  "gross_cap_risk_off": 0.35,
+  "max_weight": 1.0,
+  "min_hold_days": 5,
+  "min_trade_shares": 1.0,
+  "risk_off_target_vol_multiplier": 0.5,
+  "covariance_lookback": 126,
+  "liquidity": {
+    "min_adv_dollars": 0,
+    "max_trade_adv_fraction": 1.0
+  },
+  "risk_exit": {
+    "stop_loss_pct": 0.1,
+    "trailing_stop_pct": 0.15,
+    "cooldown_days": 10
+  },
+  "regime": {
+    "use_breadth": true,
+    "breadth_min_frac": 0.66,
+    "min_confirmations": 4,
+    "require_anchor_trend": true,
+    "drawdown_lookback": 252,
+    "drawdown_floor": -0.2
+  }
+}

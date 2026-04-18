@@ -1,9 +1,10 @@
 # trade_assist
 
-`trade_assist` provides two CLI tools:
+`trade_assist` provides three CLI tools:
 
 - `backtest`: run historical simulation of a policy.
 - `recommend`: generate `BUY` / `SELL` / `HOLD` actions from current portfolio state.
+- `tune`: run walk-forward tuning over a policy search space.
 
 ## Installation
 
@@ -51,6 +52,18 @@ Templates:
 
 - `config.recommend.example.json`
 
+### `trade-assist tune`
+
+Purpose: search policy parameter combinations and report the best configuration.
+
+```bash
+trade-assist tune --config config.tune.json
+```
+
+Template: `config.tune.example.json`
+
+Set `tuning.workers` to an integer for a fixed process count, or `null` to use one worker per available logical CPU (up to the number of trials).
+
 ## Documentation
 
 - Quickstart (how to configure and test your own symbols/positions): `QUICKSTART.md`
@@ -75,4 +88,7 @@ make test
 ## Notes
 
 - Configs are validated against JSON Schema before execution.
+- `policy_type` defaults to `v1` and resolves through the policy adapter registry.
+- New policy types can be added as adapter modules (`trade_assist/policy/adapters/*.py`)
+  or as entry-point plugins (`trade_assist.policy_adapters`).
 - Outputs are model-generated signals and not investment advice.

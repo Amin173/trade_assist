@@ -4,12 +4,15 @@ Schemas:
 
 - Backtest config: `trade_assist/schemas/backtest.schema.json`
 - Recommend config: `trade_assist/schemas/recommend.schema.json`
+- Tune config: `trade_assist/schemas/tune.schema.json`
 - Policy file: `trade_assist/schemas/policy.schema.json`
 
 Runtime behavior:
 
 - `$schema` is optional and mainly helps editors with autocomplete and validation hints.
-- The CLI always validates against the bundled schema for the command you run (`backtest` or `recommend`), even if `$schema` is missing.
+- The CLI always validates against the bundled schema for the command you run (`backtest`, `recommend`, or `tune`), even if `$schema` is missing.
+- `policy_type` defaults to `v1`. The selected adapter defines both policy schema validation and execution logic for backtest/recommend/tune.
+- Adapters are discovered from built-in modules in `trade_assist/policy/adapters/` and from installed entry-point plugins in the `trade_assist.policy_adapters` group.
 
 ## `trade-assist backtest`
 
@@ -29,6 +32,7 @@ Runs a historical simulation with your selected settings.
 ### Optional top-level fields
 
 - `$schema`: schema hint for editors and tooling. Runtime validation still uses the bundled backtest schema.
+- `policy_type`: policy adapter id (`v1` by default).
 - `policy`: inline policy object.
 - `policy_path`: path to an external policy JSON file.
 - `output`: optional diagnostics and exports.
@@ -213,6 +217,7 @@ Compares current holdings to model target holdings and returns `BUY`, `SELL`, or
 ### Optional top-level fields
 
 - `$schema`: optional editor hint; runtime validation still uses the bundled recommend schema.
+- `policy_type`: policy adapter id (`v1` by default).
 - `policy`
 - `policy_path`
 - `recommendation`
@@ -237,3 +242,58 @@ Action rules:
 - `BUY` if `target_shares - current_shares > min_trade_shares`
 - `SELL` if `current_shares - target_shares > min_trade_shares`
 - `HOLD` otherwise
+
+## `trade-assist tune`
+
+Command:
+
+```bash
+trade-assist tune --config <file>
+```
+
+Runs walk-forward parameter search on a policy and saves trial outputs.
+
+### Required top-level fields
+
+- `data`
+- `portfolio`
+- `tuning`
+
+### Optional top-level fields
+
+- `$schema`: optional editor hint; runtime still validates against bundled tune schema.
+- `policy_type`: policy adapter id (`v1` by default).
+- `policy`
+- `policy_path`
+- `split`
+- `objective`
+- `output`
+
+### Shared sections
+
+- `data`: see backtest `data`.
+- `portfolio`: see backtest `portfolio`.
+- `policy`: see backtest `policy`.
+
+### Tune-specific sections
+
+- `split`: walk-forward window settings and optional `final_test` date range.
+- `tuning`: search method (`random` or `grid`), optional parallel worker count, and parameter `search_space`.
+- `objective`: score weights and feasibility constraints.
+- `output`: save paths for trials CSV, best policy JSON, and summary JSON.
+
+### `tuning`
+
+- `method` (`"random"` | `"grid"`): search mode.
+- `trials` (`integer`, random mode): number of sampled candidates.
+- `workers` (`integer | null`, default `1`): number of parallel workers for trial evaluation. Use `null` to auto-size to available logical CPUs, capped at the trial count.
+- `seed` (`integer`, random mode): RNG seed for reproducible candidate generation.
+- `max_grid_points` (`integer`, grid mode): maximum allowed candidate count before grid search is rejected.
+- `search_space` (`object`, required): dotted-path parameter specs to explore.
+
+Parallel tuning notes:
+
+- Parallelism is applied across trials, not inside each backtest.
+- The engine prefers process workers for better CPU scaling and falls back to threads when the environment blocks multiprocessing primitives.
+- Progress updates are emitted as trials complete, so completion order may differ from trial id when `workers > 1`.
+- Higher `workers` usually reduces wall-clock time, but increases CPU and memory usage.

@@ -2,12 +2,19 @@ from __future__ import annotations
 
 import pytest
 
-from trade_assist.config_validation import validate_config, validate_policy
+from trade_assist.config_validation import (
+    ConfigValidationError,
+    validate_config,
+    validate_policy,
+)
 
 
 def test_validate_backtest_config_rejects_missing_required_sections():
-    with pytest.raises(ValueError):
+    with pytest.raises(ConfigValidationError) as exc_info:
         validate_config({}, command="backtest")
+    assert str(exc_info.value) == (
+        "Invalid backtest config: missing required field 'data' at top level."
+    )
 
 
 def test_validate_policy_accepts_known_keys():
@@ -36,3 +43,30 @@ def test_validate_backtest_config_accepts_plot_trade_markers():
         "output": {"plot_equity_curve": True, "plot_trade_markers": True},
     }
     validate_config(payload, command="backtest")
+
+
+def test_validate_tune_config_accepts_minimal_sections():
+    payload = {
+        "data": {"tickers": ["AAA"]},
+        "portfolio": {"cash": 1000},
+        "tuning": {
+            "method": "random",
+            "trials": 5,
+            "search_space": {"max_weight": {"type": "float", "low": 0.2, "high": 0.6}},
+        },
+    }
+    validate_config(payload, command="tune")
+
+
+def test_validate_tune_config_accepts_auto_workers():
+    payload = {
+        "data": {"tickers": ["AAA"]},
+        "portfolio": {"cash": 1000},
+        "tuning": {
+            "method": "random",
+            "trials": 5,
+            "workers": None,
+            "search_space": {"max_weight": {"type": "float", "low": 0.2, "high": 0.6}},
+        },
+    }
+    validate_config(payload, command="tune")

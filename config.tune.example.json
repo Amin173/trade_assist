@@ -1,0 +1,73 @@
+{
+  "$schema": "./trade_assist/schemas/tune.schema.json",
+  "data": {
+    "tickers": ["MSFT", "NVDA"],
+    "index_ticker": "SPY",
+    "regime_tickers": ["QQQ", "IWM"],
+    "period": "10y",
+    "interval": "1d",
+    "use_cache": true,
+    "cache_dir": ".cache/market_data",
+    "cache_ttl_hours": 24,
+    "force_refresh": false
+  },
+  "policy_type": "v1",
+  "policy_path": "policies/baseline.json",
+  "portfolio": {
+    "cash": 100000,
+    "positions": {
+      "MSFT": 0,
+      "NVDA": 0
+    }
+  },
+  "split": {
+    "warmup_days": 252,
+    "walk_forward": {
+      "train_days": 756,
+      "validation_days": 126,
+      "step_days": 63,
+      "min_windows": 2
+    },
+    "final_test": {
+      "start": "2025-01-01",
+      "end": "2025-12-31"
+    }
+  },
+  "tuning": {
+    "method": "random",
+    "trials": 100,
+    "workers": null,
+    "seed": 42,
+    "search_space": {
+      "target_vol_risk_on": {"type": "float", "low": 0.12, "high": 0.35},
+      "gross_cap_risk_off": {"type": "float", "low": 0.1, "high": 0.6},
+      "max_weight": {"type": "float", "low": 0.25, "high": 1.0},
+      "min_hold_days": {"type": "int", "low": 1, "high": 30},
+      "min_trade_shares": {"type": "float", "low": 0.0, "high": 5.0},
+      "risk_exit.stop_loss_pct": {"type": "float", "low": 0.0, "high": 0.2},
+      "risk_exit.trailing_stop_pct": {"type": "float", "low": 0.0, "high": 0.25},
+      "regime.min_confirmations": {"type": "int", "low": 2, "high": 6},
+      "regime.breadth_min_frac": {"type": "float", "low": 0.4, "high": 0.9}
+    }
+  },
+  "objective": {
+    "weights": {
+      "cagr_pct": 1.0,
+      "max_drawdown_pct": 1.0,
+      "annualized_vol_pct": -0.1,
+      "sharpe": 10.0,
+      "sortino": 5.0
+    },
+    "constraints": {
+      "min_trade_count": 5,
+      "max_drawdown_floor_pct": -45
+    }
+  },
+  "output": {
+    "dir": "outputs/tuning",
+    "save_trials_csv": true,
+    "save_best_policy_json": true,
+    "save_summary_json": true,
+    "print_top_k": 10
+  }
+}

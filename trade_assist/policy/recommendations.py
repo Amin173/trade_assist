@@ -167,9 +167,10 @@ def recommend_positions(
     min_trade_shares: float = 1.0,
 ) -> tuple[list[Recommendation], pd.Series, int]:
     tickers = list(ohlcv_map.keys())
+    ticker_index = pd.Index(tickers, dtype=object)
     close_df = pd.concat(
         {ticker: ohlcv_map[ticker][COL_CLOSE] for ticker in tickers}, axis=1
-    )
+    ).reindex(columns=ticker_index)
     volume_df = pd.concat(
         {
             ticker: (
@@ -180,14 +181,12 @@ def recommend_positions(
             for ticker in tickers
         },
         axis=1,
-    )
+    ).reindex(columns=ticker_index)
     latest_day = close_df.index[-1]
-    latest_prices = close_df.loc[latest_day].reindex(tickers)
-    latest_adv_dollars = (
-        volume_df.loc[latest_day].reindex(tickers) * latest_prices
-    ).fillna(0.0)
+    latest_prices = close_df.loc[latest_day]
+    latest_adv_dollars = (volume_df.loc[latest_day] * latest_prices).fillna(0.0)
 
-    current_shares = pd.Series(0.0, index=tickers)
+    current_shares = pd.Series(0.0, index=ticker_index)
     for ticker, shares in current_positions.items():
         if ticker in current_shares.index:
             current_shares.loc[ticker] = float(shares)
