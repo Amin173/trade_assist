@@ -13,12 +13,19 @@ cd /path/to/project_root
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
+make dev-setup
+```
+
+The preferred developer workflow is to use `make` for setup, formatting, testing, and release tasks.
+`make dev-setup` installs the package plus the development tooling used by the repo.
+
+If you only want the runtime package without the dev tools, use:
+
+```bash
 pip install -e .
 ```
 
-This installs the package and all runtime dependencies from `setup.py`.
-
-For development (includes `pytest`, `black`, `mypy`, and `flake8`):
+If you prefer the explicit lower-level install command, `make dev-setup` is equivalent to:
 
 ```bash
 pip install -e ".[dev]"
@@ -75,15 +82,22 @@ Set `tuning.workers` to an integer for a fixed process count, or `null` to use o
 make check
 ```
 
-Individual commands:
+Preferred developer commands:
 
 ```bash
+make dev-setup
 make format
 make check-format
 make lint
 make typecheck
 make test
+make build
+make release
 ```
+
+`make dev-setup` installs the development dependencies needed for formatting, testing, and packaging.
+`make build` creates source and wheel artifacts in `dist/` without changing code or running tests.
+`make release` auto-formats the Python codebase, runs the test suite, and then builds the release artifacts.
 
 ## Notes
 

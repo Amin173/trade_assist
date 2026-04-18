@@ -188,7 +188,10 @@ def test_format_failed_criteria_preview_compacts_long_lists():
     assert cli._format_failed_criteria_preview([]) == "-"
     assert (
         cli._format_failed_criteria_preview(
-            ["trade_count>=5 x1 (observed 3)", "max_drawdown>=-45.00% x1 (observed -50.00%)"]
+            [
+                "trade_count>=5 x1 (observed 3)",
+                "max_drawdown>=-45.00% x1 (observed -50.00%)",
+            ]
         )
         == "trade_count>=5 x1 (observed 3), max_drawdown>=-45.00% x1 (observed -50.00%)"
     )
@@ -341,8 +344,12 @@ def test_tune_from_config_handles_interrupt_and_writes_cached_summary(
 
     monkeypatch.setattr(cli, "validate_config", lambda payload, command: None)
     monkeypatch.setattr(cli, "_resolve_policy_adapter", lambda payload: _DummyAdapter())
-    monkeypatch.setattr(cli, "_resolve_policy_payload", lambda payload, cfg_path, adapter: {})
-    monkeypatch.setattr(cli, "_load_market_data", lambda payload, cfg_path: ({"AAA": df}, df[COL_CLOSE]))
+    monkeypatch.setattr(
+        cli, "_resolve_policy_payload", lambda payload, cfg_path, adapter: {}
+    )
+    monkeypatch.setattr(
+        cli, "_load_market_data", lambda payload, cfg_path: ({"AAA": df}, df[COL_CLOSE])
+    )
     monkeypatch.setattr(
         "trade_assist.tuning.engine._build_walk_forward_windows",
         lambda dates, split_cfg: [object(), object()],

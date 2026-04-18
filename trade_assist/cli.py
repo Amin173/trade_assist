@@ -705,7 +705,9 @@ def _trials_dataframe_from_cache_log(log_data: dict[str, Any]) -> pd.DataFrame:
                 "policy_payload",
             ]
         )
-    return pd.DataFrame(rows).sort_values(["score", "trial_id"], ascending=[False, True])
+    return pd.DataFrame(rows).sort_values(
+        ["score", "trial_id"], ascending=[False, True]
+    )
 
 
 def _best_trial_record_from_cache(log_data: dict[str, Any]) -> dict[str, Any] | None:
@@ -906,7 +908,9 @@ def tune_from_config(config_path: str) -> int:
             split_cfg,
         )
     )
-    target_trial_count = len(_iter_overrides(tuning_cfg.get("search_space", {}), tuning_cfg))
+    target_trial_count = len(
+        _iter_overrides(tuning_cfg.get("search_space", {}), tuning_cfg)
+    )
     _append_jsonl(
         run_log_path,
         {

@@ -47,7 +47,10 @@ def test_tune_policy_random_returns_trials(ohlcv_factory):
     assert all(
         0 <= trial.failed_window_count <= trial.window_count for trial in result.trials
     )
-    assert all(len(trial.failed_windows) == trial.failed_window_count for trial in result.trials)
+    assert all(
+        len(trial.failed_windows) == trial.failed_window_count
+        for trial in result.trials
+    )
     assert all(isinstance(trial.failed_criteria, tuple) for trial in result.trials)
 
 

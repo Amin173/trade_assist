@@ -74,10 +74,7 @@ def _format_validation_message(exc: ValidationError, label: str) -> str:
 
     extra = _unexpected_property(exc)
     if extra is not None:
-        return (
-            f"Invalid {label}: unknown field '{extra}' "
-            f"at {_path_label(exc)}."
-        )
+        return f"Invalid {label}: unknown field '{extra}' " f"at {_path_label(exc)}."
 
     return f"Invalid {label} at {_path_label(exc)}: {exc.message}"
 

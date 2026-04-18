@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "trade_assist"
+version = "0.1.0"
+description = "Technical analysis and configurable policy backtesting"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "yfinance",
+    "pandas",
+    "numpy",
+    "matplotlib",
+    "jsonschema",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "black>=24.0",
+    "mypy>=1.8",
+    "flake8>=7.0",
+    "build>=1.2",
+    "setuptools>=68",
+    "wheel>=0.43",
+]
+
+[project.scripts]
+trade-assist = "trade_assist.cli:main"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+include = ["trade_assist", "trade_assist.*"]
+
+[tool.setuptools.package-data]
+"trade_assist.schemas" = ["*.json"]

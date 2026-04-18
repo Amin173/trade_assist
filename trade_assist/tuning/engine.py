@@ -261,9 +261,7 @@ def _summarize_constraint_failures(
             details[failure.code] = failure.detail
         counts[failure.code] += 1
 
-    return tuple(
-        f"{labels[code]} x{counts[code]} ({details[code]})" for code in order
-    )
+    return tuple(f"{labels[code]} x{counts[code]} ({details[code]})" for code in order)
 
 
 def _sample_random_value(rng: random.Random, spec: dict[str, Any]) -> Any:

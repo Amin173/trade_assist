@@ -1,10 +1,13 @@
-.PHONY: format check-format lint typecheck test check
+.PHONY: dev-setup format check-format lint typecheck test check build release
+
+dev-setup:
+	python3 -m pip install -e ".[dev]"
 
 format:
-	python3 -m black trade_assist tests
+	python3 -m black scripts setup.py trade_assist tests
 
 check-format:
-	python3 -m black --check trade_assist tests
+	python3 -m black --check scripts setup.py trade_assist tests
 
 lint:
 	python3 -m flake8 trade_assist tests
@@ -16,3 +19,9 @@ test:
 	python3 -m pytest -q
 
 check: check-format lint typecheck test
+
+build:
+	python3 scripts/release.py --skip-format --skip-tests
+
+release:
+	python3 scripts/release.py
