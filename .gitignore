@@ -17,3 +17,4 @@ outputs/
 
 # OS/editor noise
 .DS_Store
+.vscode/
