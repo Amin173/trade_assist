@@ -4,9 +4,11 @@ import argparse
 from datetime import datetime, timezone
 import json
 import math
+import os
 from pathlib import Path
 import sys
 import time
+import traceback
 from typing import Any
 
 import numpy as np
@@ -14,7 +16,7 @@ import pandas as pd
 
 from .config_validation import (
     ConfigValidationError,
-    PolicyValidationError,
+    TradeAssistUserError,
     validate_config,
     validate_policy,
 )
@@ -78,8 +80,20 @@ NO_TARGET_EXPOSURE_TEXT = "No target exposure (all cash)"
 
 def _load_config(path: str) -> tuple[dict[str, Any], Path]:
     cfg_path = Path(path)
-    with cfg_path.open("r", encoding="utf-8") as f:
-        return json.load(f), cfg_path
+    try:
+        with cfg_path.open("r", encoding="utf-8") as f:
+            return json.load(f), cfg_path
+    except FileNotFoundError as exc:
+        raise TradeAssistUserError(f"Config file not found: {cfg_path}") from exc
+    except OSError as exc:
+        raise TradeAssistUserError(
+            f"Unable to read config file {cfg_path}: {exc.strerror or exc}"
+        ) from exc
+    except json.JSONDecodeError as exc:
+        raise TradeAssistUserError(
+            f"Invalid JSON in config file {cfg_path}: {exc.msg} "
+            f"(line {exc.lineno}, column {exc.colno})"
+        ) from exc
 
 
 def _require_keys(
@@ -87,7 +101,9 @@ def _require_keys(
 ) -> None:
     missing = [k for k in required if k not in payload]
     if missing:
-        raise ValueError(f"Missing required {scope} key(s): {', '.join(missing)}")
+        raise TradeAssistUserError(
+            f"Missing required {scope} key(s): {', '.join(missing)}"
+        )
 
 
 def _extract_data_cfg(
@@ -99,14 +115,16 @@ def _extract_data_cfg(
 
     tickers = data_cfg[KEY_TICKERS]
     if not isinstance(tickers, list) or not tickers:
-        raise ValueError("data.tickers must be a non-empty list of symbols")
+        raise TradeAssistUserError("data.tickers must be a non-empty list of symbols")
 
     index_ticker = data_cfg.get(KEY_INDEX_TICKER, DEFAULT_INDEX_TICKER)
     regime_tickers_raw = data_cfg.get(KEY_REGIME_TICKERS, [])
     if regime_tickers_raw is None:
         regime_tickers_raw = []
     if not isinstance(regime_tickers_raw, list):
-        raise ValueError("data.regime_tickers must be a list of symbols when provided")
+        raise TradeAssistUserError(
+            "data.regime_tickers must be a list of symbols when provided"
+        )
     regime_tickers = [str(symbol) for symbol in regime_tickers_raw if str(symbol)]
     period = data_cfg.get(KEY_PERIOD, DEFAULT_PERIOD)
     interval = data_cfg.get(KEY_INTERVAL, DEFAULT_INTERVAL)
@@ -181,7 +199,10 @@ def _load_market_data(
 
 def _resolve_policy_adapter(payload: dict[str, Any]) -> PolicyAdapter:
     policy_type = str(payload.get(KEY_POLICY_TYPE, DEFAULT_POLICY_TYPE))
-    return get_policy_adapter(policy_type)
+    try:
+        return get_policy_adapter(policy_type)
+    except ValueError as exc:
+        raise TradeAssistUserError(str(exc)) from exc
 
 
 def _resolve_policy_payload(
@@ -195,19 +216,33 @@ def _resolve_policy_payload(
         if not path.is_absolute():
             path = config_path.parent / path
         if not path.exists():
-            raise ValueError(f"policy_path not found: {path}")
+            raise TradeAssistUserError(f"policy_path not found: {path}")
 
-        with path.open("r", encoding="utf-8") as f:
-            policy_payload = json.load(f)
+        try:
+            with path.open("r", encoding="utf-8") as f:
+                policy_payload = json.load(f)
+        except FileNotFoundError as exc:
+            raise TradeAssistUserError(f"policy_path not found: {path}") from exc
+        except OSError as exc:
+            raise TradeAssistUserError(
+                f"Unable to read policy_path {path}: {exc.strerror or exc}"
+            ) from exc
+        except json.JSONDecodeError as exc:
+            raise TradeAssistUserError(
+                f"Invalid JSON in policy_path {path}: {exc.msg} "
+                f"(line {exc.lineno}, column {exc.colno})"
+            ) from exc
         if not isinstance(policy_payload, dict):
-            raise ValueError(f"policy_path must point to a JSON object: {path}")
+            raise TradeAssistUserError(
+                f"policy_path must point to a JSON object: {path}"
+            )
         validate_policy(policy_payload, policy_type=adapter.policy_type)
         return policy_payload
 
     if KEY_POLICY in payload:
         policy_payload = payload.get(KEY_POLICY, {})
         if not isinstance(policy_payload, dict):
-            raise ValueError("config.policy must be a JSON object")
+            raise TradeAssistUserError("config.policy must be a JSON object")
         validate_policy(policy_payload, policy_type=adapter.policy_type)
         return policy_payload
 
@@ -1104,9 +1139,20 @@ def main() -> int:
             file=sys.stderr,
         )
         return 2
-    except PolicyValidationError as exc:
+    except (TradeAssistUserError, ValueError, OSError) as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 2
+    except KeyboardInterrupt:
+        print("Error: interrupted by user", file=sys.stderr)
+        return 130
+    except Exception as exc:
+        if os.environ.get("TRADE_ASSIST_DEBUG"):
+            traceback.print_exception(
+                type(exc), exc, exc.__traceback__, file=sys.stderr
+            )
+        else:
+            print(f"Error: {exc}", file=sys.stderr)
+        return 1
 
     parser.print_help()
     return 1

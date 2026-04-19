@@ -171,6 +171,22 @@ def test_main_renders_config_validation_errors_cleanly(monkeypatch, capsys):
     assert captured.out == ""
 
 
+def test_main_renders_missing_config_errors_cleanly(monkeypatch, capsys, tmp_path):
+    missing_cfg = tmp_path / "does-not-exist.json"
+    monkeypatch.setattr(
+        "sys.argv",
+        ["trade-assist", "tune", "--config", str(missing_cfg)],
+    )
+
+    rc = cli.main()
+
+    captured = capsys.readouterr()
+    assert rc == 2
+    assert "Error: Config file not found:" in captured.err
+    assert "Traceback" not in captured.err
+    assert captured.out == ""
+
+
 def test_format_duration_humanizes_seconds():
     assert cli._format_duration(7.2) == "7s"
     assert cli._format_duration(65.0) == "1m 5s"
